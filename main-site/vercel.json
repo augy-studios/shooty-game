@@ -6,5 +6,35 @@
     "rewrites": [{
         "source": "/",
         "destination": "/"
+    }, {
+        "source": "/join",
+        "destination": "/"
+    }, {
+        "source": "/r/:id([A-Za-z0-9]{8})",
+        "destination": "/"
+    }],
+    "functions": {
+        "api/game/start.js": {
+            "includeFiles": "js/{seed,rules}.js"
+        },
+        "api/game/finish.js": {
+            "maxDuration": 30,
+            "includeFiles": "js/*.js"
+        },
+        "api/game/submit.js": {
+            "maxDuration": 30,
+            "includeFiles": "js/*.js"
+        },
+        "api/leaderboard/index.js": {
+            "includeFiles": "js/rules.js"
+        },
+        "api/replay/create.js": {
+            "maxDuration": 30,
+            "includeFiles": "js/*.js"
+        }
+    },
+    "headers": [{
+        "source": "/sw.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     }]
 }

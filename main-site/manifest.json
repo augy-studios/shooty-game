@@ -1,7 +1,7 @@
 {
     "name": "uwuShooty by UwU Apps",
     "short_name": "uwuShooty",
-    "description": "A simple uwushooty app; view live uwushooty at a glance!",
+    "description": "Archery, darts, hoops and penalty kicks. Read the wind, steady your nerves, and beat the bot or a friend.",
     "icons": [{
             "src": "UST-192.png",
             "type": "image/png",
@@ -10,7 +10,8 @@
         {
             "src": "UST-512.png",
             "type": "image/png",
-            "sizes": "512x512"
+            "sizes": "512x512",
+            "purpose": "any maskable"
         }
     ],
     "screenshots": [{
@@ -22,23 +23,23 @@
         {
             "src": "/images/screenshot_2.png",
             "type": "image/png",
-            "sizes": "1920x1080",
+            "sizes": "1920x988",
             "form_factor": "wide"
         }
     ],
     "start_url": "/",
     "theme_color": "#cfc",
     "background_color": "#cfc",
-    "display": "standalone",
-    "display_override": ["fullscreen", "minimal-ui", "window-controls-overlay"],
+    "display": "fullscreen",
+    "display_override": ["fullscreen", "standalone", "minimal-ui"],
     "orientation": "any",
     "id": "uwushooty",
     "dir": "ltr",
     "scope": "/",
     "lang": "en",
     "categories": [
-        "entertainment",
-        "lifestyle",
-        "utilities"
+        "games",
+        "sports",
+        "entertainment"
     ]
 }
