@@ -26,7 +26,7 @@
 //   a dive  [tap ms, x mm, y mm], where the keeper was sent and when, from
 //           the start of the turn's aim; a tap of -1 never dived
 
-import { body, newPath, record, step, reflect, solveLaunch, segmentPoint, DT, SAMPLE_MS } from "./physics.js";
+import { body, newPath, record, step, reflect, solveLaunch, segmentPoint, DT, SAMPLE_MS, G } from "./physics.js";
 import { gauss, unit, SALT } from "./seed.js";
 import { hypot } from "./fmath.js";
 import { MAX_AIM_MS } from "./rules.js";
@@ -62,6 +62,30 @@ const TUNING = {
   easy: { wind: 3, sway: 0.1, err: 0.1, read: 0.3, react: 320, dive: 3.3, botSd: 0.6, adapt: 0.15, botPower: 0.45 },
   medium: { wind: 5, sway: 0.15, err: 0.13, read: 0.45, react: 250, dive: 3.9, botSd: 0.42, adapt: 0.35, botPower: 0.6 },
   hard: { wind: 7, sway: 0.2, err: 0.16, read: 0.6, react: 190, dive: 4.5, botSd: 0.3, adapt: 0.55, botPower: 0.72 },
+};
+
+// The computer in goal, from rules 2, how a real keeper faces a penalty.
+// A kick reaches the line in 0.35 to 0.65 s; a keeper needs about 0.2 s
+// to react to the ball and 0.6 s or more to dive to a corner, so against
+// a well struck kick waiting to see it is too late, and keepers commit on
+// what the kicker's run up, hips and standing foot give away, which the
+// best read well above chance. Against a soft one there is time to watch
+// it and go. And most kicks go to the sides, so nearly every keeper dives,
+// although standing tall saves the ones down the middle.
+//   cue       chance of reading the side right from the run up
+//   cueSd     how far off, metres, the read of where is, given the side
+//   see       how far off, metres, the read of the ball in flight is
+//   react     ms from the strike before the keeper can move on what it
+//             sees of the ball
+//   wait      the margin, ms, the keeper wants between its reaction and
+//             the ball arriving before it trusts its eyes over its read;
+//             a poor keeper guesses even when it had time to look
+//   middle    chance it stands up for a kick it reads as down the middle
+//   dive      metres a second it covers in a dive; set 150 ms on top
+const KEEPER = {
+  easy: { cue: 0.5, cueSd: 1.1, see: 0.6, react: 300, wait: 520, middle: 0.35, dive: 3.4 },
+  medium: { cue: 0.6, cueSd: 0.8, see: 0.38, react: 240, wait: 360, middle: 0.6, dive: 4 },
+  hard: { cue: 0.66, cueSd: 0.6, see: 0.26, react: 200, wait: 260, middle: 0.85, dive: 4.5 },
 };
 
 const int = (v) => Number.isInteger(v);
@@ -105,6 +129,7 @@ export const kicks = {
       log: [[], []],
       done: false,
       t: TUNING[settings.difficulty],
+      keeper: KEEPER[settings.difficulty],
     };
   },
 
@@ -212,9 +237,10 @@ export const kicks = {
     if (kick[0] < 0 && turn.input !== "keep") {
       kick = [kick[1], kick[1], kick[2], kick[3], kick[4], kick[5]];
     }
-    const flight = kickFlight(cond, ctx, kick, (aim) => {
+    const flight = kickFlight(cond, ctx, kick, (aim, v) => {
       // A person in goal goes where they were sent, or stays put.
       if (turn.input === "keep") return plan;
+      if (ctx.settings.rules >= 2) return smartKeeper(g.keeper, cond, ctx, aim, v);
       // The computer in goal: it reacts, and either reads the kick or
       // guesses a side.
       const u = unit(ctx.seedNum, ctx.i, SALT.keeper, 0);
@@ -295,6 +321,45 @@ export const kicks = {
   },
 };
 
+// The computer in goal (rules 2 on): reads the kick or waits for it, as
+// KEEPER above says. Dive times are from the strike; a negative one is a
+// keeper moving before the ball is struck, as they mostly do.
+function smartKeeper(k, cond, ctx, aim, v) {
+  const u = (n) => unit(ctx.seedNum, ctx.i, SALT.keeper, 10 + n);
+  const gs = (n) => gauss(ctx.seedNum, ctx.i, SALT.keeper, 20 + n);
+  const react = cond.wet ? k.react + 30 * cond.wet : k.react;
+  const dive = cond.wet ? k.dive * (1 - 0.06 * cond.wet) : k.dive;
+  // What the ball's first flight says, carried on in a straight line under
+  // gravity alone: where it would cross the line. Curl, the wind and the
+  // drag all move it from there, which is what beats keepers.
+  const t = (GOAL_Z - SPOT.z) / v.z;
+  const seenX = SPOT.x + v.x * t + gs(0) * k.see;
+  const seenY = SPOT.y + v.y * t - 0.5 * G * t * t + gs(1) * k.see * 0.7;
+  const arrive = t * 1000;
+  // Time enough to watch it and still get there?
+  const reach = 150 + (1000 * hypot(seenX, seenY - 1.1)) / dive;
+  if (arrive - react >= reach - k.wait) {
+    // It waits, watches and goes for the ball.
+    if (Math.abs(seenX) < 0.7 && u(0) < k.middle) return divePlan(react, seenX, Math.max(0.6, seenY), dive * 0.6);
+    return divePlan(react, seenX, seenY, dive);
+  }
+  // Too quick to see: it goes on its read of the kicker.
+  const side = aim.x < -0.6 ? -1 : aim.x > 0.6 ? 1 : 0;
+  if (side === 0) {
+    // Down the middle: the good ones stay up for it; the rest guess a side.
+    if (u(1) < k.middle) return divePlan(-40, aim.x * 0.5 + gs(2) * 0.3, 1.2 + gs(3) * 0.3, dive * 0.6);
+    const guess = u(2) < 0.5 ? -1 : 1;
+    return divePlan(-120 + 80 * u(3), guess * (1.6 + 1.4 * u(4)), 0.4 + 1.4 * u(5), dive);
+  }
+  const right = u(6) < k.cue;
+  const goes = right ? side : -side;
+  // Right side: about where, from the cue, near enough to the truth for a
+  // good reader. Wrong side: a mirror of where it thought.
+  const x = right ? aim.x + gs(4) * k.cueSd : -side * (1.4 + 1.6 * u(7));
+  const y = right ? aim.y + gs(5) * k.cueSd * 0.8 : 0.3 + 1.6 * u(8);
+  return divePlan(-150 + 170 * u(9), goes * Math.abs(x) || goes * 0.8, y, dive);
+}
+
 // The bot's kick, given what the person in goal did before it: a dive made
 // well before the kick may be read, and the bot goes the other way.
 function botKick(g, cond, ctx, tap, diveX) {
@@ -312,7 +377,8 @@ function botKick(g, cond, ctx, tap, diveX) {
 
 // One kick, from the strike until it settles: through the air with its
 // spin and the wind, off the posts and bar, into the keeper or past them,
-// and into the net. `keeper(aim)` gives the dive, once the aim is known.
+// and into the net. `keeper(aim, v)` gives the dive, once the aim and the
+// ball's launch velocity are known.
 function kickFlight(cond, ctx, kick, keeper) {
   const [press, release, mx, my, power, curl] = kick;
   const hold = release - press;
@@ -330,7 +396,7 @@ function kickFlight(cond, ctx, kick, keeper) {
   const b = body(SPOT.x, SPOT.y, SPOT.z, v.x, v.y, v.z);
   const spin = 0.24 * (curl / 1000) * (speed / 25);
   const air = { wx: cond.wind.x, wz: cond.wind.z, k: K, spin };
-  const plan = keeper(aim);
+  const plan = keeper(aim, v);
   const ground = groundOf(cond.wet);
   const gloves = glovesOf(cond.wet);
   const path = newPath();

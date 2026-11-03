@@ -12,7 +12,8 @@ import { sway } from "./sim-shared.js";
 import { cleanSeed, newSeed } from "./seed.js";
 import { packRecord } from "./record.js";
 import { pathMs } from "./physics.js";
-import { initStage, useWorld, render, setQuality, setMode } from "./scene.js";
+import { initStage, useWorld, render, capture, setQuality, setMode } from "./scene.js";
+import { prepare as prepareShot, layout as shotLayout, caption, save as saveShot } from "./shot.js";
 import { createControls, shareable, cleanShared } from "./controls.js";
 import { createReplay } from "./replay.js";
 import { api } from "./api.js";
@@ -171,8 +172,7 @@ export function showSetup(game = S.game) {
   show("tapHint", false);
   renderSetup();
   useWorld(S.game).then((w) => {
-    if (!w) return;
-    S.world = w;
+    if (w && w.module.id === S.game) S.world = w;
   });
 }
 
@@ -428,6 +428,7 @@ function onKey(e) {
       replay.toggle();
     } else if (e.key === "ArrowLeft") replay.stepBack();
     else if (e.key === "ArrowRight") replay.stepForward();
+    else if ((e.key === "p" || e.key === "P") && !e.repeat) takeShot();
     return;
   }
   if (S.screen !== "playing") return;
@@ -726,7 +727,7 @@ function frame(now) {
   const weather = state.weather;
   setRain(weather?.kind === "storm" ? 1 : weather?.kind === "rain" ? 0.55 : 0);
   if (weather?.wet && t > from && t - from < 1000) {
-    for (const s of thunderBetween(weather, state.seedNum, from, t)) thunder(s.km);
+    for (const s of thunderBetween(weather, state.seedNum, from, t)) thunder(s.km, (s.shape % 1000) / 1000);
   }
 
   updateHud(state, fr, t);
@@ -734,6 +735,9 @@ function frame(now) {
   hudText("tapHint", h);
   show("tapHint", Boolean(h));
 
+  // A picture asked for: drawn at 4K and copied first, then the frame is
+  // drawn over it as usual, which is all that reaches the screen.
+  if (S.shotWanted && (S.screen === "result" || S.screen === "shared")) captureShot(info);
   render(info);
   inkCtx.clearRect(0, 0, ink.width, ink.height);
   // Hidden when it has nothing on it, which also makes sure the cleared
@@ -801,6 +805,7 @@ function endMatch() {
   S.controls?.cancel();
   if (S.ticket) S.finishing = api.finish(S.ticket.id, S.record).catch(() => null);
   S.party?.ended?.();
+  S.playedAt = Date.now();
   showResult(state, { live: true });
 }
 
@@ -955,7 +960,7 @@ async function shareReplay() {
 }
 
 // A replay from a link: the match played back, nothing to submit.
-export async function openShared({ record, state, name = null, verified = false, id = null }) {
+export async function openShared({ record, state, name = null, verified = false, id = null, playedAt = null }) {
   leaveMatch();
   S.game = record.game;
   const world = await useWorld(S.game);
@@ -971,8 +976,80 @@ export async function openShared({ record, state, name = null, verified = false,
   S.names = record.names ?? [name ?? "Player", "Bot"];
   S.mine = [true, false];
   S.shared = { record, name, verified, id };
+  S.playedAt = playedAt;
   S.screen = "shared";
   showResult(state, { shared: S.shared });
+}
+
+/* ---- a picture of the replay ---- */
+
+// The canvas holds the scene and nothing else: the scoreboard, the panels
+// and the buttons are HTML over it, so a copy of the canvas is the picture
+// without them. It is drawn at 4K, 3840 pixels along the longer side,
+// whatever the screen, in the graphics quality picked, and js/shot.js
+// puts the player's name, the match and the site along the bottom. A 4K
+// draw with High's post-processing briefly takes a lot of GPU memory, so
+// it is held to 4K UHD's pixel count in all, and to about 6 megapixels on
+// a phone, where running out loses the game's graphics. After stack-game.
+const SHOT_LONG = 3840;
+const SHOT_MAX_PIXELS = 3840 * 2160;
+const SHOT_MAX_PIXELS_PHONE = 6e6;
+
+async function takeShot() {
+  if (!S.world || S.shotWanted || $("rpShot").disabled || !replay.state) return;
+  $("rpShot").disabled = true;
+  // The band is laid out in the same moment as the draw, so its font and
+  // icon have to be in hand first.
+  await prepareShot();
+  S.shotWanted = true;
+}
+
+function captureShot(info) {
+  S.shotWanted = false;
+  const phone = matchMedia("(pointer: coarse)").matches;
+  const words = shotInfo();
+  let plan = null;
+  const picture = capture(info, { long: SHOT_LONG, maxPixels: phone ? SHOT_MAX_PIXELS_PHONE : SHOT_MAX_PIXELS }, (w, h) => (plan = shotLayout(w, h, words)).bandH);
+  (async () => {
+    if (!picture) throw new Error("no picture");
+    caption(picture, plan);
+    await saveShot(picture, GAMES[S.game].label);
+    toast(`Picture saved, ${picture.width} × ${picture.height}.`);
+  })()
+    .catch((err) => {
+      console.error(err);
+      toast("Could not take the picture.");
+    })
+    .finally(() => ($("rpShot").disabled = false));
+}
+
+// What the band along the bottom says: the finished match, whatever
+// moment of the replay is showing, and the player's set name.
+function shotInfo() {
+  const st = replay.state;
+  const s = st.settings;
+  const shared = S.screen === "shared";
+  const me = S.mine?.[1] && !S.mine?.[0] ? 1 : 0;
+  const board = st.turns.at(-1)?.board;
+  const scores = board ? `${board.scores[me]} to ${board.scores[1 - me]}` : "";
+  const r = resultFor(st, me);
+  const other = s.mode === "bot" ? "the bot" : nameOf(1 - me);
+  let title;
+  if (st.over?.by === "quit") title = `Stopped at ${scores}`;
+  else if (s.mode === "local") title = r === "draw" ? `A draw, ${scores}` : `${nameOf(st.over.winner)} won, ${scores}`;
+  else title = `${r === "win" ? "Won" : r === "draw" ? "Drew" : "Lost"} ${scores} against ${other}`;
+  const name = shared ? S.shared?.name ?? (s.mode === "bot" ? "" : nameOf(0)) : s.mode === "bot" ? getSettings().name ?? "" : nameOf(me);
+  return {
+    name: name || "",
+    title,
+    score: s.mode === "bot" ? scoreOf(st, 0) : null,
+    game: GAMES[s.game].label,
+    difficulty: DIFFICULTIES[s.difficulty].label,
+    length: lengthLabel(s.game, s.length),
+    weather: st.weather?.wet ? st.weather.label : "",
+    seed: st.seed,
+    playedAt: S.playedAt ?? null,
+  };
 }
 
 /* ---- wiring ---- */
@@ -1043,6 +1120,7 @@ export function initGame({ onFriend }) {
 
   bindSetup();
   replay.init();
+  $("rpShot").addEventListener("click", takeShot);
   $("playFriendBtn").addEventListener("click", () => onFriend(S.game));
   $("backBtn").addEventListener("click", () => {
     if (S.party) S.party.leave?.();
@@ -1103,7 +1181,7 @@ export function initGame({ onFriend }) {
   hydrateIcons();
   // The range behind the menu.
   useWorld(S.game).then((w) => {
-    if (w && !S.world) S.world = w;
+    if (w && !S.world && w.module.id === S.game) S.world = w;
   });
   requestAnimationFrame(frame);
 }

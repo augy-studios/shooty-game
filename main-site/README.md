@@ -35,14 +35,15 @@ the browser and the server always agree on a match.
 | `sim.js` | A match as data: turns, the bot's turns, timing, points, and playing a record back. |
 | `sim-archery.js`, `sim-darts.js`, `sim-hoops.js`, `sim-kicks.js` | Each game's rules, sizes, bot and flight. |
 | `record.js` | A match as it is kept, sent and shared, and the token a long replay link carries. |
-| `scene.js` | The three.js stage, its materials and outlines, the light, the wind's motes, and High graphics' post-processing (MSAA, bloom, SMAA). |
+| `scene.js` | The three.js stage, its materials and outlines, the light, the wind's motes (soft round dots on High), High graphics' post-processing (MSAA, bloom, SMAA), and the 4K capture. |
 | `scene-props.js` | Trees, hills, clouds and the wind flags. |
 | `weather.js` | When lightning flashes and thunder rolls in a wet match, from the seed and the game clock, so a replay storms the same. |
-| `scene-weather.js` | The rain drawn: the grey sky, the falling and blowing drops, splashes, the wet ground and puddles, and lightning. |
+| `scene-weather.js` | The weather drawn: the grey sky and dark rain cloud, the drops and their splashes and ripples on the GPU, bigger splashes where things land, the wet ground and puddles, the forked lightning, and the stars on a clear night. |
 | `scene-archery.js`, `scene-darts.js`, `scene-hoops.js`, `scene-kicks.js` | Each game's world, and its aiming layer: reticles, sweeps, the power meter, the drag. |
 | `controls.js` | Each game's hands: how a press, a drag or a tap becomes a shot, and how a turn's aim looked, for the replay. |
 | `game.js` | The screens, the match loop, the scoreboard, the result, submitting, seeds, sharing and shared replays. |
 | `replay.js` | The instant replay's clock and controls. |
+| `shot.js` | The replay's 4K picture: the caption band and the download, after stack-game's. |
 | `party.js` | Playing a friend: on one device, or on two over `net.js`. |
 | `net.js` | Pairing over PeerJS, STUN only, from `docs/STUN-p2p-spec.md`, after stack-game's and uwuPromptr's. |
 | `qr.js` | QR encoder for the join link, from uwuPromptr, so it works offline. |
@@ -87,6 +88,30 @@ curls the ball that way. Against the bot you keep goal for its kicks: tap
 where to dive. Dive too early and a good bot sees it and goes the other
 way. Between two people the computer keeps goal for both.
 
+**The computer in goal** keeps goal the way a real keeper faces a
+penalty. A kick reaches the line in 0.35 to 0.65 s, and a keeper needs
+about 0.2 s to react and 0.6 s or more to dive to a corner, so against a
+well struck kick it cannot wait to see the ball: it commits, a moment
+before the strike, on what the kicker's run up gives away, and the better
+the keeper the more often it reads the right side and the closer it gets
+to where the ball is going. Against a soft kick, with time to watch it, it
+reacts to the ball's first flight and goes for where that says it will
+cross, which a curling or wind blown kick can still beat. And though
+keepers nearly always dive (most kicks go to the sides), the good ones
+stand up to a kick down the middle. Its skill is the difficulty's:
+
+| | Reads the side | Reaction | Dive | Stands up to the middle |
+| --- | --- | --- | --- | --- |
+| Easy | 50%, a guess | 300 ms | 3.4 m/s | 35% |
+| Medium | 60% | 240 ms | 4.0 m/s | 60% |
+| Hard | 66% | 200 ms | 4.5 m/s | 85% |
+
+Against a stand-in kicker it saves about one firm kick in ten on Easy,
+one in five on Medium and one in four on Hard, more of the soft ones and
+the ones down the middle; corners are the hardest to save, as they are.
+Before rules 2 the keeper guessed blindly or read the kick outright;
+those old matches still play with it.
+
 **Rain, outdoors.** Archery, Hoops and Kicks are played outside, and the
 seed decides the weather for the whole match: one match in five is in
 light rain, with the odd roll of distant thunder (6 to 15 km off, so a
@@ -94,10 +119,20 @@ rumble, half a minute after a glow on the clouds); on Hard three in five
 are, and that is a thunderstorm, heavier, with a strike every ten seconds
 or so under 6 km away, the bolt in sight and the crack close behind (the
 thunder comes about 2.9 s after the flash for every kilometre, the speed of
-sound). Darts is indoors and stays dry. The rain is drawn to scale, drops
-of about 1 mm falling at about 4 m/s in light rain and 2 to 3 mm at about
-7 m/s in a storm, blown sideways by the shot's wind. A chip says it is
-wet, and everything is slippery, which makes the game a little harder:
+sound). Darts is indoors and stays dry. A deck of dark rain cloud comes
+over and the sky greys. The rain is drawn to scale and the way stack-game
+draws it, every drop a streak worked out on the GPU: drops of about 1 mm
+falling at about 4 m/s in light rain and 2 to 3 mm at about 7 m/s in a
+storm, carried sideways at the wind's speed, so in a strong wind the rain
+slants hard. On High every drop splashes where it lands, a crown of
+droplets for a fifth of a second, and rings spread across the puddles (and
+faintly across the court's film of water) at about 24 cm/s, the slowest a
+ripple on water can travel. A ball bouncing, an arrow burying itself or a
+keeper landing from a dive throws up a spray of droplets and sends out
+bigger, faster rings, with a splash you can hear. Lightning is a forked
+bolt brighter than white, which the bloom spreads into a glow. A chip says
+it is wet, and everything is slippery, which makes the game a little
+harder:
 
 | Game | What the rain does |
 | --- | --- |
@@ -158,6 +193,16 @@ step back or forward one shot at a time, a timeline, and 0.5x, 1x, 2x or 4x
 as in Word Rain, the speed picked last remembered. Space and the arrow keys
 work too. On a narrow screen the panel folds to its controls while the
 replay runs.
+
+**A picture.** The camera button in the replay's controls (or P) saves a
+picture of the moment showing, as stack-game does: drawn at 4K, 3840 pixels
+along the longer side (held to 4K UHD's pixel count in all, and about 6
+megapixels on a phone), in the graphics quality picked, with nothing of the
+page over it. A frosted band along the bottom gives the player's name, how
+the match went and the score, the game, difficulty, length, weather, seed
+and day, and uwuShooty's icon and address; the view is zoomed out just
+enough that all the screen showed sits above the band. It goes straight
+into the browser's downloads.
 
 **Sharing.** Share replay makes a link, through the device's share sheet
 where it has one and the clipboard otherwise. Online it is a short link,

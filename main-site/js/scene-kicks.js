@@ -4,9 +4,9 @@
 // the side, and the person playing keeps goal by tapping where to dive.
 
 import { THREE, mesh, mat, outline, v3, lights, motes, canvasTexture, project, smooth } from "./scene.js";
-import { weather } from "./scene-weather.js";
+import { weather, groundHits } from "./scene-weather.js";
 import { clouds, flag, scenery } from "./scene-props.js";
-import { pathAt } from "./physics.js";
+import { pathAt, SAMPLE_MS } from "./physics.js";
 import { GOAL_Z, HALF_W, BAR, BALL, NET_DEPTH, KEEPER_Z, kicks, keeperAt } from "./sim-kicks.js";
 
 const PLAYER = [0xe2464f, 0x1f8fd6];
@@ -205,7 +205,6 @@ export function create() {
     clouds: sky2,
     box: [16, 8, 20],
     centre: [0, 4, 5],
-    count: 1800,
     ground: { w: 200, d: 200, x: 0, z: 0 },
     pools: { w: 16, d: 14, x: 0, z: 6 },
     bolt: { z: 95, y: 70, spread: 45 },
@@ -324,6 +323,16 @@ export function create() {
     }
     poseKeeper(kp, pose, t, false);
     ball.position.copy(v3(pos.x, pos.y, pos.z));
+    // In the rain: a splash where the ball comes down on the wet grass, and
+    // a big one where the keeper lands from a dive.
+    if (turn?.result && t >= release - 400) {
+      const res = turn.result;
+      rain.track(`k${turn.i}`, () => {
+        const hits = groundHits(res.path, BALL, SAMPLE_MS);
+        if (res.plan) hits.push({ ms: res.plan.t0 + res.plan.dur + 120, x: res.plan.x * 0.7, z: KEEPER_Z + 0.2, strength: 1.3 });
+        return hits.sort((a, b) => a.ms - b.ms);
+      }, t - release);
+    }
     setNet(netHit);
 
     // The bot's kicker: runs up from the left and strikes it.
@@ -348,7 +357,7 @@ export function create() {
     cornerFlag.update(dt, wind);
     sky2.update(dt, wind);
     air.update(dt, wind, t);
-    rain.update(info, dt, wind);
+    rain.update(info, dt, wind, camera);
   }
 
   function resize(w, h) {
@@ -422,5 +431,5 @@ export function create() {
     return true;
   }
 
-  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, ink, module: kicks };
+  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, weather: rain, ink, module: kicks };
 }

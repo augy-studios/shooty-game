@@ -166,11 +166,13 @@ export function create({ renderer }) {
     clouds: sky2,
     box: [8, 7, 80],
     centre: [0, 3.5, 48],
-    count: 1500,
+    // Through the sight's long lens a drop a few metres off would be a
+    // blur across the target; near the archer they fade out.
+    near: 15,
     ground: { w: 260, d: 360, x: 0, z: 140 },
     pools: { w: 6, d: 70, x: 0, z: 40 },
     puddles: 14,
-    bolt: { z: 128, y: 40, spread: 13 },
+    bolt: { z: 128, y: 40, spread: 13, width: 0.3 },
     rand,
   });
 
@@ -333,7 +335,12 @@ export function create({ renderer }) {
     windFlag2.update(dt, wind);
     sky2.update(dt, wind);
     air.update(dt, wind, t);
-    rain.update(info, dt, wind);
+    // An arrow that buries itself in the wet grass splashes, a little.
+    if (turn?.result && !turn.result.none && t >= turn.release) {
+      const res = turn.result;
+      rain.track(`a${turn.i}`, () => (res.stuck === "ground" ? [{ ms: res.flightMs, x: res.hit.x, z: res.hit.z, strength: 0.35 }] : []), t - turn.release);
+    }
+    rain.update(info, dt, wind, camera);
   }
 
   function resize(w, h) {
@@ -409,5 +416,5 @@ export function create({ renderer }) {
   // Metres on the face per pixel of drag, for the controls.
   const aimScale = (h, d) => ((2 * halfView(d)) / h) * 0.6;
 
-  return { scene, camera, overlay, update, resize, setMode, bloomBoost: rain.bloomBoost, ink, aimScale, module: archery };
+  return { scene, camera, overlay, update, resize, setMode, bloomBoost: rain.bloomBoost, weather: rain, ink, aimScale, module: archery };
 }

@@ -120,7 +120,8 @@ async function openShort(id) {
   try {
     const data = await api.replay(id);
     const record = cleanRecord(data.record);
-    if (watch(record, { name: data.name ?? null, verified: data.verified === true, id })) return true;
+    const played = Date.parse(data.played_at ?? data.created_at ?? "");
+    if (watch(record, { name: data.name ?? null, verified: data.verified === true, id, playedAt: Number.isFinite(played) ? played : null })) return true;
   } catch (err) {
     toast(err.code === "offline" ? "Opening a short replay link needs a connection." : "That replay could not be found.");
   }

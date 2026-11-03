@@ -4,7 +4,9 @@ Four games of aim against the wind: Archery, Darts, Hoops and Kicks. Every
 shot is flown through real physics, pushed by the wind on that shot, and
 aimed by hands that sway, and sway more on the shots that decide the
 match. Outdoors it sometimes rains, and on Hard it storms: everything is
-slippery, and the thunder does nobody's nerves any good. Play the bot at Easy, Medium or Hard, or a friend on the same
+slippery, and the thunder does nobody's nerves any good. The computer in
+goal keeps goal the way real keepers face penalties, better the harder the
+difficulty, and every replay can be saved as a 4K picture. Play the bot at Easy, Medium or Hard, or a friend on the same
 device or the same wifi. Every match has a seed that can be copied and
 played again, an instant replay that can be stepped through shot by shot,
 a replay link to share, and each game has its own leaderboards.
@@ -134,6 +136,9 @@ The kick is stack-game's `SoccerKick.wav`. The rain (`Rain.mp3`, looped)
 and the thunder (`Thunder.mp3`, played quieter and through a lower
 low-pass filter the further off its strike is, as air soaks up a sound's
 high notes over distance) were added with the weather; check their source
-and licence too. `RainAndThunder.mp3` is not used: its thunder would not
-line up with the lightning. The bowstring, the bow's creak,
+and licence too. Thunder is one of three takes, as stack-game cuts them:
+the clap in `Thunder.mp3`, or one of the two rolls cut out of
+`RainAndThunder.mp3`, a near strike more likely the clap and a far one a
+roll. The splash of a ball or a keeper on the wet ground is stack-game's
+`waterSplash.wav`, trimmed to `splash.mp3`. The bowstring, the bow's creak,
 the wind and the heartbeat are synthesised in `js/audio.js`.

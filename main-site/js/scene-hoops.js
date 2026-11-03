@@ -5,9 +5,9 @@
 // the bottom of the screen until it goes.
 
 import { THREE, mesh, mat, outline, v3, lights, motes, canvasTexture, project, smooth, shadowsOn } from "./scene.js";
-import { weather } from "./scene-weather.js";
+import { weather, groundHits } from "./scene-weather.js";
 import { tree, hills, clouds, flag, scenery } from "./scene-props.js";
-import { pathAt } from "./physics.js";
+import { pathAt, SAMPLE_MS } from "./physics.js";
 import { RIM_Y, RIM_R, BALL, BOARD_Z, BOARD, THREE as THREE_LINE, SPOT_ANGLES, hoops, rimX } from "./sim-hoops.js";
 import { INTRO_MS } from "./rules.js";
 
@@ -183,9 +183,9 @@ export function create() {
     clouds: sky2,
     box: [18, 9, 20],
     centre: [0, 4.5, -3],
-    count: 1800,
     ground: { w: 120, d: 120, x: 0, z: 0 },
     pools: { w: 17, d: 13, x: 0, z: BASELINE - 7 },
+    paved: { w: 19, d: 15, x: 0, z: BASELINE - 6 },
     bolt: { z: 90, y: 75, spread: 40 },
     rand,
   });
@@ -295,6 +295,9 @@ export function create() {
     if (turn) {
       if (turn.result && t >= turn.release && !turn.result.none) {
         pos = pathAt(turn.result.path, t - turn.release);
+        // Each bounce on the wet court splashes.
+        const path = turn.result.path;
+        rain.track(`h${turn.i}`, () => groundHits(path, BALL, SAMPLE_MS), t - turn.release);
         made = turn.result.made;
         ball.rotation.x -= dt * 9;
       } else if (cond) {
@@ -316,7 +319,7 @@ export function create() {
     windFlag.update(dt, wind);
     sky2.update(dt, wind);
     air.update(dt, wind, t);
-    rain.update(info, dt, wind);
+    rain.update(info, dt, wind, camera);
   }
 
   function resize(w, h) {
@@ -397,5 +400,5 @@ export function create() {
     return true;
   }
 
-  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, ink, module: hoops };
+  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, weather: rain, ink, module: hoops };
 }

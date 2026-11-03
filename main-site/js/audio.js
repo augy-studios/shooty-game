@@ -31,7 +31,18 @@ const FILES = {
   kick: "/sounds/kick.wav",
   rain: "/sounds/Rain.mp3",
   thunder: "/sounds/Thunder.mp3",
+  rainThunder: "/sounds/RainAndThunder.mp3",
+  splash: "/sounds/splash.mp3",
 };
+
+// Thunder comes in three takes, as stack-game cuts them: the clap in
+// Thunder.mp3, and the two rolls in RainAndThunder.mp3, cut out of the
+// rain round them, each [file, from, to] in seconds.
+const THUNDER_TAKES = [
+  ["thunder", 0.45, 7.1],
+  ["rainThunder", 2.2, 7.4],
+  ["rainThunder", 10.3, 15.2],
+];
 
 let ctx = null;
 let master = null;
@@ -211,18 +222,44 @@ export function setRain(level) {
   rain.gain.gain.setTargetAtTime(0.42 * on, ctx.currentTime, on ? 0.6 : 0.15);
 }
 
-// One thunderclap from a strike `km` away: closer is louder and sharper.
-export function thunder(km) {
-  if (!enabled() || !buffers.thunder) return;
-  const src = ctx.createBufferSource();
-  src.buffer = buffers.thunder;
+// One thunderclap from a strike `km` away: closer is louder and sharper,
+// a near one the clap, a far one more likely a roll. `pick` (0 to 1) picks
+// among the takes that fit, so a replay hears the same one.
+export function thunder(km, pick = Math.random()) {
+  if (!enabled()) return;
+  const fits = km < 2.5 ? [0, 0, 1] : km < 7 ? [0, 1, 2] : [1, 2, 2];
+  const [name, from, to] = THUNDER_TAKES[fits[Math.floor(pick * 3) % 3]];
+  if (!buffers[name]) return;
+  const at = ctx.currentTime + 0.02;
   // Far ones a touch slower, which stretches the rumble out.
-  src.playbackRate.value = Math.max(0.7, 1.05 - km * 0.025);
+  const rate = Math.max(0.72, 1.05 - km * 0.025);
+  const seconds = (to - from) / rate;
+  const src = ctx.createBufferSource();
+  src.buffer = buffers[name];
+  src.playbackRate.value = rate;
   const filter = ctx.createBiquadFilter();
   filter.type = "lowpass";
   filter.frequency.value = Math.max(220, 4000 / (1 + km * 0.9));
   const gain = ctx.createGain();
-  gain.gain.value = Math.min(1, 1.6 / (1 + km * 0.35));
+  const peak = Math.min(1, 1.6 / (1 + km * 0.35));
+  gain.gain.setValueAtTime(0, at);
+  gain.gain.linearRampToValueAtTime(peak, at + 0.05 + 0.03 * km);
+  gain.gain.setValueAtTime(peak, at + Math.max(0.1, seconds - 0.8));
+  gain.gain.linearRampToValueAtTime(0, at + seconds);
   src.connect(filter).connect(gain).connect(master);
+  src.start(at, from, seconds * rate);
+}
+
+// Water thrown up off the wet ground: a ball bouncing, an arrow going in,
+// a keeper landing. stack-game's splash, trimmed, smaller and brighter
+// for a smaller splash, and no two quite alike.
+export function playSplash(strength = 0.6) {
+  if (!enabled() || !buffers.splash) return;
+  const src = ctx.createBufferSource();
+  src.buffer = buffers.splash;
+  src.playbackRate.value = (1.5 - 0.45 * strength) * (0.95 + Math.random() * 0.1);
+  const gain = ctx.createGain();
+  gain.gain.value = 0.15 + 0.45 * strength;
+  src.connect(gain).connect(master);
   src.start();
 }

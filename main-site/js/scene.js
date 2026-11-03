@@ -55,6 +55,12 @@ const MSAA_SAMPLES = 4;
 // Whether shadows are drawn: the worlds that fake a shadow for Low (a dark
 // disc under the ball) hide it when the real one is there.
 export const shadowsOn = () => quality === "high" && Boolean(renderer?.shadowMap.enabled);
+// Whether High graphics is on: the weather draws its splashes, the motes
+// are soft round dots.
+export const isHigh = () => quality === "high";
+// The picture's height in device pixels, for sizes worked out per pixel.
+const bufferSize = new THREE.Vector2();
+export const drawingHeight = () => (renderer ? renderer.getDrawingBufferSize(bufferSize).y : height);
 
 export const v3 = (x, y, z, out = new THREE.Vector3()) => out.set(-x, y, z);
 
@@ -158,6 +164,8 @@ export function lights(scene, { sun = [8, 14, -6], target = [0, 0, 20], span = 3
 // Motes: dust and seed fluff drifting on the wind through a box in front
 // of the camera, so the air's speed and direction can be seen as well as
 // read off the chip. Purely for show; nothing in the game touches them.
+// On High each is a soft round dot, a little larger, as fluff caught in
+// the light looks; on Low a plain square, which is cheapest.
 export function motes(scene, { box = [12, 4, 30], centre = [0, 2, 15], count = 160, color = 0xffffff, size = 0.06 } = {}) {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(count * 3);
@@ -168,6 +176,36 @@ export function motes(scene, { box = [12, 4, 30], centre = [0, 2, 15], count = 1
   }
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   const material = new THREE.PointsMaterial({ color, size, transparent: true, opacity: 0.75, depthWrite: false });
+  // High's: round and soft-edged, sized by distance but never more than a
+  // few pixels, and faded out right by the lens, where a mote would be a
+  // blur filling half the view.
+  const soft = new THREE.ShaderMaterial({
+    uniforms: { uColour: { value: new THREE.Color(color).multiplyScalar(0.9) }, uSize: { value: size * 1.3 }, uScale: { value: 500 }, uMax: { value: 9 }, fog: null },
+    vertexShader: `
+      uniform float uSize;
+      uniform float uScale;
+      uniform float uMax;
+      varying float vFade;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        float d = -mv.z;
+        vFade = smoothstep(0.8, 2.5, d);
+        gl_PointSize = clamp(uSize * uScale / max(d, 0.01), 1.0, uMax);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 uColour;
+      varying float vFade;
+      void main() {
+        float r = length(gl_PointCoord - 0.5) * 2.0;
+        float a = (1.0 - smoothstep(0.25, 1.0, r)) * 0.8 * vFade;
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(uColour, a);
+      }`,
+    transparent: true,
+    depthWrite: false,
+  });
+  delete soft.uniforms.fog;
   const points = new THREE.Points(geo, material);
   points.frustumCulled = false;
   scene.add(points);
@@ -176,6 +214,13 @@ export function motes(scene, { box = [12, 4, 30], centre = [0, 2, 15], count = 1
     points,
     // wind in game coordinates, m/s.
     update(dt, wind, t) {
+      points.material = quality === "high" ? soft : material;
+      if (quality === "high" && renderer) {
+        const cam = current?.camera;
+        const h = renderer.getDrawingBufferSize(bufferSize).y;
+        soft.uniforms.uScale.value = h / (2 * Math.tan(((cam?.fov ?? 50) * Math.PI) / 360));
+        soft.uniforms.uMax.value = 4.5 * renderer.getPixelRatio();
+      }
       const a = geo.attributes.position.array;
       const wx = -(wind?.x ?? 0);
       const wz = wind?.z ?? 0;
@@ -287,17 +332,24 @@ function usePost() {
 export const stageSize = () => ({ width, height });
 
 // The world for a game, made once.
+// The last asked for wins: a world that finishes loading after another
+// was asked for (the menu's, under a replay link opened at boot) is kept
+// for later but not shown.
+let wanted = null;
 export async function useWorld(id) {
   if (!renderer) return null;
+  wanted = id;
   if (!worlds[id]) {
     const module = await WORLDS[id]();
-    const w = module.create({ THREE, renderer });
-    w.resize(width, height);
-    w.setMode?.(mode === "dark");
-    worlds[id] = w;
+    if (!worlds[id]) {
+      const w = module.create({ THREE, renderer });
+      w.resize(width, height);
+      w.setMode?.(mode === "dark");
+      worlds[id] = w;
+    }
   }
-  current = worlds[id];
-  return current;
+  if (wanted === id) current = worlds[id];
+  return worlds[id];
 }
 
 export const world = () => current;
@@ -305,6 +357,8 @@ export const world = () => current;
 // Draws the current world as it is at `info`.
 export function render(info) {
   if (!renderer || !current) return;
+  // A match for another game while its world is still loading.
+  if (info.state && current.module?.id !== info.state.settings.game) return;
   current.update(info);
   const p = usePost();
   if (p) {
@@ -327,6 +381,67 @@ export function render(info) {
     renderer.autoClear = false;
     renderer.clearDepth();
     renderer.render(current.overlay.scene, current.overlay.camera);
+  }
+}
+
+// A picture of the current world at `info`, drawn at up to `long` pixels
+// along its longer side (4K is 3840) and no more than `maxPixels` in all,
+// as a 2D canvas. The canvas holds the scene and nothing else; the HUD is
+// HTML over it. `band(w, h)` gives the height, in the picture's pixels, of
+// a caption band to go along the bottom: the view is drawn zoomed out just
+// enough that all the screen showed fits above the band, so nothing the
+// player could see is hidden behind it, the way stack-game does it.
+//
+// WebGL lets go of its picture once a frame is on screen, so the frame is
+// drawn and copied in the same moment, then the screen's own size is put
+// back for the next frame.
+export function capture(info, { long = 3840, maxPixels = 3840 * 2160 } = {}, band = () => 0) {
+  if (!renderer || !current) return null;
+  const gl = renderer.getContext();
+  const dims = gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+  const biggest = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE), gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), dims[0], dims[1]);
+  const before = renderer.getPixelRatio();
+  const side = Math.max(width, height);
+  const ratio = Math.max(before, Math.min(long / side, Math.sqrt(maxPixels / (width * height)), biggest / side));
+  const cams = [current.camera, current.overlay?.camera].filter(Boolean);
+  try {
+    renderer.setPixelRatio(ratio);
+    renderer.setSize(width, height, false);
+    if (post) {
+      post.composer.setPixelRatio(ratio);
+      post.composer.setSize(width, height);
+    }
+    const W = canvas.width;
+    const H = canvas.height;
+    const keep = Math.max(0.5, 1 - band(W, H) / H);
+    current.update(info);
+    // Zoomed out by `keep`, the screen's view across the top.
+    for (const cam of cams) {
+      cam.setViewOffset(width * keep, height * keep, -(width - width * keep) / 2, 0, width, height);
+    }
+    const skipUpdate = current.update;
+    current.update = () => {};
+    try {
+      render(info);
+    } finally {
+      current.update = skipUpdate;
+    }
+    const copy = document.createElement("canvas");
+    copy.width = W;
+    copy.height = H;
+    copy.getContext("2d").drawImage(canvas, 0, 0);
+    return copy;
+  } catch (err) {
+    console.error(err);
+    return null;
+  } finally {
+    for (const cam of cams) cam.clearViewOffset();
+    renderer.setPixelRatio(before);
+    renderer.setSize(width, height, false);
+    if (post) {
+      post.composer.setPixelRatio(before);
+      post.composer.setSize(width, height);
+    }
   }
 }
 
