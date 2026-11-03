@@ -4,7 +4,8 @@
 // behind the shooter at each spot in turn; the ball is in their hands at
 // the bottom of the screen until it goes.
 
-import { THREE, mesh, mat, outline, v3, lights, motes, canvasTexture, project, smooth } from "./scene.js";
+import { THREE, mesh, mat, outline, v3, lights, motes, canvasTexture, project, smooth, shadowsOn } from "./scene.js";
+import { weather } from "./scene-weather.js";
 import { tree, hills, clouds, flag, scenery } from "./scene-props.js";
 import { pathAt } from "./physics.js";
 import { RIM_Y, RIM_R, BALL, BOARD_Z, BOARD, THREE as THREE_LINE, SPOT_ANGLES, hoops, rimX } from "./sim-hoops.js";
@@ -177,10 +178,23 @@ export function create() {
   const sky2 = clouds(scene, { z: 110, y: 36 }, rand);
   const windFlag = flag(scene, 7.6, BASELINE + 1.8, { height: 5, color: 0xffd33f });
   const air = motes(scene, { box: [14, 5, 14], centre: [0, 2.5, -2], count: 110 });
+  const rain = weather(scene, {
+    light,
+    clouds: sky2,
+    box: [18, 9, 20],
+    centre: [0, 4.5, -3],
+    count: 1800,
+    ground: { w: 120, d: 120, x: 0, z: 0 },
+    pools: { w: 17, d: 13, x: 0, z: BASELINE - 7 },
+    bolt: { z: 90, y: 75, spread: 40 },
+    rand,
+  });
 
   const ball = mesh(new THREE.SphereGeometry(BALL, 24, 16), mat(0xffffff, { map: ballTexture() }));
   outline(ball, 0.006);
   scene.add(ball);
+  // A soft dark disc under the ball, for Low graphics only: on High the
+  // light casts the ball's real shadow, and the two together made two.
   const ballShadow = new THREE.Mesh(new THREE.CircleGeometry(BALL, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25 }));
   ballShadow.rotation.x = -Math.PI / 2;
   scene.add(ballShadow);
@@ -196,6 +210,7 @@ export function create() {
     scene.fog.color.set(c);
     sky2.material.color.set(dusk ? 0x5b6a8c : 0xffffff);
     light.set(dusk);
+    rain.setMode(dusk);
   }
 
   // Where the camera stands for a turn: behind and above the shooter.
@@ -295,12 +310,13 @@ export function create() {
       ballShadow.scale.setScalar(1 + pos.y * 0.15);
       ballShadow.material.opacity = Math.max(0.05, 0.3 - pos.y * 0.05);
     }
-    ballShadow.visible = ball.visible;
+    ballShadow.visible = ball.visible && !shadowsOn();
     setNet(hx, pos, made);
 
     windFlag.update(dt, wind);
     sky2.update(dt, wind);
     air.update(dt, wind, t);
+    rain.update(info, dt, wind);
   }
 
   function resize(w, h) {
@@ -381,5 +397,5 @@ export function create() {
     return true;
   }
 
-  return { scene, camera, update, resize, setMode, ink, module: hoops };
+  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, ink, module: hoops };
 }

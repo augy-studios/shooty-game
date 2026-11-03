@@ -14,7 +14,7 @@ the files are served as they are, and `api/` holds the serverless functions.
 | `css/theme.css` | The uwuapps theme, verbatim from `docs/uwuapps-theme.md`, time-based mode included. |
 | `css/style.css` | Layout: the full-bleed game, the scoreboard, the sheets and the Edge Tray. |
 | `js/` | ES modules, below. |
-| `vendor/three/` | three.js r187, with its licence, vendored so it is precached and every game draws offline. |
+| `vendor/three/` | three.js r187, with its licence, vendored so it is precached and every game draws offline: the build, and the post-processing passes High graphics uses (`examples/jsm/`, unchanged from the same release). |
 | `sounds/` | The recorded sounds; see the root README for where they came from. |
 | `api/` | The API, below. |
 | `images/` | Manifest screenshots, at the sizes `manifest.json` gives. Placeholders until real ones replace them. |
@@ -31,12 +31,14 @@ the browser and the server always agree on a match.
 | `seed.js` | Seeds, and the random numbers a match draws from. |
 | `rules.js` | The settings (difficulty, length, shot clock, mode), the timing every turn shares, the nerves, and scoring. |
 | `physics.js` | Flight in fixed steps: gravity, drag against moving air, spin; aiming; bounces. |
-| `sim-shared.js` | The wind, the sway of a hand, the arm tiring, and the pressure on a shot. |
+| `sim-shared.js` | The weather, the wind, the sway of a hand, the arm tiring, and the pressure on a shot. |
 | `sim.js` | A match as data: turns, the bot's turns, timing, points, and playing a record back. |
 | `sim-archery.js`, `sim-darts.js`, `sim-hoops.js`, `sim-kicks.js` | Each game's rules, sizes, bot and flight. |
 | `record.js` | A match as it is kept, sent and shared, and the token a long replay link carries. |
-| `scene.js` | The three.js stage, its materials and outlines, the light, and the wind's motes. |
+| `scene.js` | The three.js stage, its materials and outlines, the light, the wind's motes, and High graphics' post-processing (MSAA, bloom, SMAA). |
 | `scene-props.js` | Trees, hills, clouds and the wind flags. |
+| `weather.js` | When lightning flashes and thunder rolls in a wet match, from the seed and the game clock, so a replay storms the same. |
+| `scene-weather.js` | The rain drawn: the grey sky, the falling and blowing drops, splashes, the wet ground and puddles, and lightning. |
 | `scene-archery.js`, `scene-darts.js`, `scene-hoops.js`, `scene-kicks.js` | Each game's world, and its aiming layer: reticles, sweeps, the power meter, the drag. |
 | `controls.js` | Each game's hands: how a press, a drag or a tap becomes a shot, and how a turn's aim looked, for the replay. |
 | `game.js` | The screens, the match loop, the scoreboard, the result, submitting, seeds, sharing and shared replays. |
@@ -85,6 +87,30 @@ curls the ball that way. Against the bot you keep goal for its kicks: tap
 where to dive. Dive too early and a good bot sees it and goes the other
 way. Between two people the computer keeps goal for both.
 
+**Rain, outdoors.** Archery, Hoops and Kicks are played outside, and the
+seed decides the weather for the whole match: one match in five is in
+light rain, with the odd roll of distant thunder (6 to 15 km off, so a
+rumble, half a minute after a glow on the clouds); on Hard three in five
+are, and that is a thunderstorm, heavier, with a strike every ten seconds
+or so under 6 km away, the bolt in sight and the crack close behind (the
+thunder comes about 2.9 s after the flash for every kilometre, the speed of
+sound). Darts is indoors and stays dry. The rain is drawn to scale, drops
+of about 1 mm falling at about 4 m/s in light rain and 2 to 3 mm at about
+7 m/s in a storm, blown sideways by the shot's wind. A chip says it is
+wet, and everything is slippery, which makes the game a little harder:
+
+| Game | What the rain does |
+| --- | --- |
+| Archery | The grip and the footing are slick, so the reticle sways 7% more in light rain and 12% in a storm; wet fletching drags a little more than the bow is sighted for, so arrows sit a touch low and the wind has longer to push them. |
+| Hoops | A wet ball slips in the hand, so aim and pull wander 5 to 8% more; off a wet rim and glass it skids instead of gripping, and off the court it comes up lower and slides on. |
+| Kicks | The standing foot slides, so kicks spread up to 35% more; the ball skids on off the wet grass, squirts off the keeper's gloves instead of sticking, and the keeper pushes off the turf a little slower. |
+
+Rain also adds to the pressure on every shot (0.05 in light rain, 0.08 in
+a storm), so the heart runs faster and the hands shake more, and since
+pressure scales points, a wet shot that goes in is worth a little more.
+The bot plays in the same rain. In the stand-in tests a wet match scores
+about 7% less in Archery, 10 to 13% less in Hoops and 2% less in Kicks.
+
 **Wind, accuracy and nerves, in every game.** Every shot has its own wind,
 shown as a chip with its speed and an arrow (up is down the range), as
 motes drifting through the scene, and as flags. A shot flies with drag
@@ -119,7 +145,7 @@ adds a quarter, drawing a tenth.
 
 ## Seeds, replays and sharing
 
-**Seeds.** Every match has one, such as `BXK4-M9TR`. It decides the wind on
+**Seeds.** Every match has one, such as `BXK4-M9TR`. It decides the weather, the wind on
 every shot, every one of the bot's shots, the sway, the archery distances
 and the hoops spots. It shows on the result, with Copy and Play it; paste
 one into a game's panel to play that match again. A match on a typed seed
@@ -175,7 +201,7 @@ Kept in this browser, after MRT Station Guesser's:
 | Sound effects | on | Also the button at the top of the tray. |
 | Hear your heartbeat on the big shots | on | |
 | Short buzzes | on | Where the device can vibrate. |
-| Graphics | High | Low draws one pixel per CSS pixel and no shadows. |
+| Graphics | High | High draws through post-processing: 4x MSAA, a soft bloom on anything brighter than white (lightning above all), and SMAA. Low draws one pixel per CSS pixel, no shadows and no post-processing. |
 
 Each game's difficulty, length and shot clock are remembered too.
 

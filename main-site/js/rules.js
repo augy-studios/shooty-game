@@ -7,7 +7,11 @@
 // submitted matches are scored: bump RULES_VERSION for anything that alters
 // how a recorded match plays or scores.
 
-export const RULES_VERSION = 1;
+// 2: rain outdoors (js/sim-shared.js weatherFor). Records played by rules 1
+// still play by them: dry.
+export const RULES_VERSION = 2;
+// Every version a record may say it was played by.
+export const READABLE_RULES = [1, 2];
 
 export const GAME_IDS = ["archery", "darts", "hoops", "kicks"];
 

@@ -7,7 +7,7 @@
 //
 // A seed looks like "BXK4-M9TR". It decides the wind for every shot, the
 // bot's every shot, the player's sway and nerves, where Hoops shoots from
-// and how far away the Archery target stands.
+// and how far away the Archery target stands, and whether it rains.
 
 // Exactly rounded, so the same everywhere.
 const SQRT3 = Math.sqrt(3);
@@ -68,6 +68,7 @@ export const SALT = {
   keeper: 9,
   drift: 10,
   look: 11,
+  weather: 12,
 };
 
 // 0 to n - 1, the same for the same seed, turn and purpose.

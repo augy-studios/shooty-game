@@ -21,13 +21,13 @@
 // people did.
 
 import {
-  RULES_VERSION, INTRO_MS, INTRO_SAME_MS, INTRO_PASS_MS, SETTLE_MS, CLOCK_GRACE_MS, MAX_SHOTS, MAX_GAME_MS,
+  RULES_VERSION, READABLE_RULES, INTRO_MS, INTRO_SAME_MS, INTRO_PASS_MS, SETTLE_MS, CLOCK_GRACE_MS, MAX_SHOTS, MAX_GAME_MS,
   cleanGame, cleanDifficulty, cleanLength, cleanClock, cleanMode,
   shotPoints, matchScore, nerveFactor, heartRate,
 } from "./rules.js";
 import { cleanSeed, seedNumber } from "./seed.js";
 import { PI, atan2 } from "./fmath.js";
-import { windFor, sway, fatigue, pressureOf } from "./sim-shared.js";
+import { windFor, sway, fatigue, pressureOf, weatherFor } from "./sim-shared.js";
 import { archery } from "./sim-archery.js";
 import { darts } from "./sim-darts.js";
 import { hoops } from "./sim-hoops.js";
@@ -37,11 +37,13 @@ export const GAMES = { archery, darts, hoops, kicks };
 
 /* ---- what every game shares, from js/sim-shared.js ---- */
 
-export { windFor, sway, fatigue, pressureOf };
+export { windFor, sway, fatigue, pressureOf, weatherFor };
 
 // Conditions every turn carries, on top of the game's own.
-function baseConditions(game, wind, pressure) {
+function baseConditions(game, wind, pressure, weather) {
   return {
+    weather,
+    wet: weather.wet,
     wind,
     windRatio: wind.ratio,
     pressure,
@@ -62,14 +64,18 @@ export function newMatch(seed, settings) {
     difficulty: cleanDifficulty(settings.difficulty),
     length: cleanLength(settings.length),
     clock: cleanClock(settings.clock),
-    rules: RULES_VERSION,
+    // A record says which rules it was played by; a new match plays by
+    // the newest.
+    rules: READABLE_RULES.includes(settings.v) ? settings.v : RULES_VERSION,
   };
   const seedNum = seedNumber(clean);
+  const weather = weatherFor(seedNum, s.game, s.difficulty, s.rules);
   const mod = GAMES[s.game];
   return {
     seed: clean,
     seedNum,
     settings: s,
+    weather,
     // Who plays: player 0 is always a person; player 1 is the bot only
     // in bot mode.
     humans: [true, s.mode !== "bot"],
@@ -86,7 +92,19 @@ export function newMatch(seed, settings) {
 const modOf = (state) => GAMES[state.settings.game];
 
 function ctxOf(state, i) {
-  return { seedNum: state.seedNum, i, settings: state.settings, humans: state.humans, windFor, sway, pressureOf, base: baseConditions };
+  const weather = state.weather;
+  return {
+    seedNum: state.seedNum,
+    i,
+    settings: state.settings,
+    humans: state.humans,
+    weather,
+    windFor,
+    sway,
+    // The rain's tension rides on every shot's pressure.
+    pressureOf: (o) => pressureOf({ ...o, tension: weather.tension }),
+    base: (game, wind, pressure) => baseConditions(game, wind, pressure, weather),
+  };
 }
 
 // The turn after the last one, set up once: who shoots, what the wind is,

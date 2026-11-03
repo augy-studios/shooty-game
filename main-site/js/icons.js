@@ -25,6 +25,9 @@ export const icons = {
   offline: svg(
     `<path d="M3 3l18 18"/><path d="M8.5 16.5a5 5 0 0 1 6-.8M5 13a10 10 0 0 1 4.2-2.6M12.8 10.1A10 10 0 0 1 19 13M2 9.5a15 15 0 0 1 4.3-2.8M10.5 5.6A15 15 0 0 1 22 9.5"/><circle cx="12" cy="19.5" r=".6" fill="currentColor"/>`
   ),
+  // A cloud with rain under it, and one with a bolt.
+  rain: svg(`<path d="M7 15.5a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8a3.75 3.75 0 0 1 .5 7.5H7Z"/><path d="M8.5 18.5 7.8 20.5M12.5 18.5l-.7 2M16.5 18.5l-.7 2"/>`),
+  storm: svg(`<path d="M7 15.5a4 4 0 0 1-.6-7.95A5.5 5.5 0 0 1 17 8a3.75 3.75 0 0 1 .5 7.5H7Z"/><path d="m12.8 13-2.3 3.8h3l-2.3 4"/><path d="M7.5 18.5l-.6 1.6M17 18.5l-.6 1.6"/>`),
   heartFilled: svg(
     `<path d="M12 20.2 4.9 13a5 5 0 0 1 7.1-7l0 0a5 5 0 0 1 7.1 7L12 20.2Z" fill="currentColor" stroke="none"/>`
   ),

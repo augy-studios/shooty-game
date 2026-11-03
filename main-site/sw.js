@@ -38,7 +38,7 @@
 //    modules, so every game draws offline. The recordings under /sounds/
 //    are precached too; the bowstring, wind and heartbeat are synthesised.
 
-const VERSION = "uwushooty-v2";
+const VERSION = "uwushooty-v3";
 
 const SHELL = `uwushooty-shell-${VERSION}`;
 
@@ -81,6 +81,7 @@ const PRECACHE = [
   "/js/scene-hoops.js",
   "/js/scene-kicks.js",
   "/js/scene-props.js",
+  "/js/scene-weather.js",
   "/js/seed.js",
   "/js/settings.js",
   "/js/sim.js",
@@ -93,9 +94,22 @@ const PRECACHE = [
   "/js/tray.js",
   "/js/ui.js",
   "/js/update-bar.js",
+  "/js/weather.js",
 
   "/vendor/three/build/three.module.js",
   "/vendor/three/build/three.core.js",
+  "/vendor/three/examples/jsm/postprocessing/EffectComposer.js",
+  "/vendor/three/examples/jsm/postprocessing/MaskPass.js",
+  "/vendor/three/examples/jsm/postprocessing/OutputPass.js",
+  "/vendor/three/examples/jsm/postprocessing/Pass.js",
+  "/vendor/three/examples/jsm/postprocessing/RenderPass.js",
+  "/vendor/three/examples/jsm/postprocessing/SMAAPass.js",
+  "/vendor/three/examples/jsm/postprocessing/ShaderPass.js",
+  "/vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js",
+  "/vendor/three/examples/jsm/shaders/CopyShader.js",
+  "/vendor/three/examples/jsm/shaders/LuminosityHighPassShader.js",
+  "/vendor/three/examples/jsm/shaders/OutputShader.js",
+  "/vendor/three/examples/jsm/shaders/SMAAShader.js",
 
   "/sounds/arrow-hit.mp3",
   "/sounds/arrow-whoosh.mp3",
@@ -106,8 +120,10 @@ const PRECACHE = [
   "/sounds/goal-cheer.mp3",
   "/sounds/kick.wav",
   "/sounds/post.mp3",
+  "/sounds/Rain.mp3",
   "/sounds/rim.mp3",
   "/sounds/swish.mp3",
+  "/sounds/Thunder.mp3",
   "/sounds/whistle.mp3",
   "/sounds/whoosh.mp3",
 

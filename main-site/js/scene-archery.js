@@ -6,6 +6,7 @@
 // closes in on where it struck.
 
 import { THREE, mesh, mat, outline, v3, lights, motes, canvasTexture, ease, smooth, project } from "./scene.js";
+import { weather } from "./scene-weather.js";
 import { tree, hedge, hills, clouds, flag, scenery } from "./scene-props.js";
 import { pathAt } from "./physics.js";
 import { FACE_R, FACE_Y, BOSS, archery } from "./sim-archery.js";
@@ -158,6 +159,20 @@ export function create({ renderer }) {
   const windFlag = flag(scene, 3.3, 20, { height: 4.5 });
   const windFlag2 = flag(scene, -3.3, 45, { height: 5, color: 0xffd33f });
   const air = motes(scene, { box: [10, 4, 60], centre: [0, 2.2, 30], count: 140 });
+  // The archer looks down the range through a narrow view, so the rain
+  // falls along the whole lane to the target.
+  const rain = weather(scene, {
+    light,
+    clouds: sky2,
+    box: [8, 7, 80],
+    centre: [0, 3.5, 48],
+    count: 1500,
+    ground: { w: 260, d: 360, x: 0, z: 140 },
+    pools: { w: 6, d: 70, x: 0, z: 40 },
+    puddles: 14,
+    bolt: { z: 128, y: 40, spread: 13 },
+    rand,
+  });
 
   // Arrows, one for every arrow a round can hold, and the one in flight.
   const pool = [[], []];
@@ -221,6 +236,7 @@ export function create({ renderer }) {
     scene.fog.color.set(c);
     sky2.material.color.set(isDusk ? 0x5b6a8c : 0xffffff);
     light.set(isDusk);
+    rain.setMode(isDusk);
   }
 
   // The half height of the view at the target: the sight's zoom. Wide
@@ -317,6 +333,7 @@ export function create({ renderer }) {
     windFlag2.update(dt, wind);
     sky2.update(dt, wind);
     air.update(dt, wind, t);
+    rain.update(info, dt, wind);
   }
 
   function resize(w, h) {
@@ -392,5 +409,5 @@ export function create({ renderer }) {
   // Metres on the face per pixel of drag, for the controls.
   const aimScale = (h, d) => ((2 * halfView(d)) / h) * 0.6;
 
-  return { scene, camera, overlay, update, resize, setMode, ink, aimScale, module: archery };
+  return { scene, camera, overlay, update, resize, setMode, bloomBoost: rain.bloomBoost, ink, aimScale, module: archery };
 }

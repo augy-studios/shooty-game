@@ -4,6 +4,7 @@
 // the side, and the person playing keeps goal by tapping where to dive.
 
 import { THREE, mesh, mat, outline, v3, lights, motes, canvasTexture, project, smooth } from "./scene.js";
+import { weather } from "./scene-weather.js";
 import { clouds, flag, scenery } from "./scene-props.js";
 import { pathAt } from "./physics.js";
 import { GOAL_Z, HALF_W, BAR, BALL, NET_DEPTH, KEEPER_Z, kicks, keeperAt } from "./sim-kicks.js";
@@ -199,6 +200,17 @@ export function create() {
   const sky2 = clouds(scene, { z: 120, y: 40 }, rand);
   const cornerFlag = flag(scene, -11, GOAL_Z + 2, { height: 3.2, color: 0xffd33f, length: 0.8 });
   const air = motes(scene, { box: [16, 4, 16], centre: [0, 2, 6], count: 120 });
+  const rain = weather(scene, {
+    light,
+    clouds: sky2,
+    box: [16, 8, 20],
+    centre: [0, 4, 5],
+    count: 1800,
+    ground: { w: 200, d: 200, x: 0, z: 0 },
+    pools: { w: 16, d: 14, x: 0, z: 6 },
+    bolt: { z: 95, y: 70, spread: 45 },
+    rand,
+  });
 
   // The keeper, one shirt per keeper, and the bot's kicker.
   const keepers = KEEPER_SHIRT.map((c) => {
@@ -226,6 +238,7 @@ export function create() {
     scene.fog.color.set(c);
     sky2.material.color.set(dusk ? 0x5b6a8c : 0xffffff);
     light.set(dusk);
+    rain.setMode(dusk);
   }
 
   // The keeper's body along the line from its feet to its hands.
@@ -335,6 +348,7 @@ export function create() {
     cornerFlag.update(dt, wind);
     sky2.update(dt, wind);
     air.update(dt, wind, t);
+    rain.update(info, dt, wind);
   }
 
   function resize(w, h) {
@@ -408,5 +422,5 @@ export function create() {
     return true;
   }
 
-  return { scene, camera, update, resize, setMode, ink, module: kicks };
+  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, ink, module: kicks };
 }

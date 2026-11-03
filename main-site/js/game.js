@@ -20,7 +20,8 @@ import { getSettings, saveSettings, saveGameSettings, onSettings } from "./setti
 import { openLeaderboard } from "./leaderboard.js";
 import { getStoredMode } from "./theme.js";
 import { copyText, escapeHtml, hydrateIcons, store } from "./ui.js";
-import { play, twang, heartbeat, setWind, unlockAudio, buzz, setMuted } from "./audio.js";
+import { play, twang, heartbeat, setWind, setRain, thunder, unlockAudio, buzz, setMuted } from "./audio.js";
+import { thunderBetween } from "./weather.js";
 
 const BEST_KEY = "uwushooty.best";
 // How long a ticket may take before the match starts unscored.
@@ -267,6 +268,7 @@ function leaveMatch() {
   show("pauseVeil", false);
   show("callout", false);
   setWind(0);
+  setRain(0);
 }
 
 /* ---- the turn showing ---- */
@@ -456,7 +458,8 @@ const possessive = (name) => (name === "You" ? "Your" : /s$/i.test(name) ? `${na
 function describeTurn(state, turn, t) {
   const who = nameOf(turn.player);
   if (!turn.result || t < turn.impact) {
-    return `${who}: ${turn.label}. Wind ${turn.cond.wind.speed.toFixed(1)} m/s, heart ${turn.cond.bpm} a minute.`;
+    const wet = turn.cond.wet ? ` ${turn.cond.weather.label}, slippery.` : "";
+    return `${who}: ${turn.label}. Wind ${turn.cond.wind.speed.toFixed(1)} m/s, heart ${turn.cond.bpm} a minute.${wet}`;
   }
   return `${who}: ${turn.result.label}.`;
 }
@@ -578,9 +581,25 @@ function updateHud(state, frame, t) {
     $("windChip").classList.remove("hidden");
     $("nerveChip").classList.remove("hidden");
     hudText("roundChip", turn.label);
+    // The rain, and what it does: the surfaces are slippery.
+    const w = cond.weather;
+    const wet = Boolean(cond.wet);
+    $("weatherChip").classList.toggle("hidden", !wet);
+    if (wet) {
+      const storm = w.kind === "storm";
+      hudText("weatherText", storm ? "Storm, slippery" : "Rain, slippery");
+      $("weatherChip").classList.toggle("storm", storm);
+      const icon = $("weatherIcon");
+      if (icon.getAttribute("data-icon") !== (storm ? "storm" : "rain")) {
+        icon.setAttribute("data-icon", storm ? "storm" : "rain");
+        hydrateIcons($("weatherChip"));
+      }
+      $("weatherChip").title = `${w.label}: the ball skids, hands slip and nerves rise`;
+    }
   } else {
     $("windChip").classList.add("hidden");
     $("nerveChip").classList.add("hidden");
+    $("weatherChip").classList.add("hidden");
     hudText("roundChip", "");
   }
 
@@ -671,6 +690,7 @@ function frame(now) {
   } else {
     inkCtx.clearRect(0, 0, ink.width, ink.height);
     setInk(false);
+    setRain(0);
     if (S.world) render({ state: null, t: now, turn: null, phase: "over", since: 0, aim: null });
     return;
   }
@@ -701,6 +721,13 @@ function frame(now) {
     }
   }
   setWind(turn ? turn.cond.windRatio : 0);
+  // The rain under it all, and each thunderclap as long after its flash
+  // as the sound takes to cover the distance.
+  const weather = state.weather;
+  setRain(weather?.kind === "storm" ? 1 : weather?.kind === "rain" ? 0.55 : 0);
+  if (weather?.wet && t > from && t - from < 1000) {
+    for (const s of thunderBetween(weather, state.seedNum, from, t)) thunder(s.km);
+  }
 
   updateHud(state, fr, t);
   const h = hint(state, fr);
@@ -840,6 +867,7 @@ function renderBreakdown(state, p) {
   rows.push(["Strongest wind", `${strongest.toFixed(1)} m/s`]);
   const fastest = Math.max(0, ...mineTurns.map((d) => d.cond.bpm));
   rows.push(["Fastest heart", `${fastest} bpm`]);
+  if (state.weather?.wet) rows.push(["Weather", `${state.weather.label}, slippery`]);
   $("breakdown").innerHTML = rows.map(([k, v]) => `<div class="breakdown-row"><dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd></div>`).join("");
 }
 

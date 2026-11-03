@@ -1,6 +1,14 @@
 // The three.js stage every game draws on: one renderer and one canvas,
 // and a world per game, made the first time it is needed.
 //
+// On High graphics every frame goes through post-processing: the scene is
+// drawn into a 4x multisampled half-float target (MSAA, which smooths
+// every edge as it is drawn), bright light bleeds a soft glow round
+// itself (bloom: the sun on white paint, and above all lightning), the
+// colour is turned into the screen's sRGB, and SMAA cleans up the edges
+// MSAA cannot reach, inside textures and on thin lines. On Low the scene
+// is drawn straight to the screen, as cheaply as it can be.
+//
 // The look is the uwuapps one in three dimensions: flat colours, toon
 // shading in three steps, and a dark ink outline round the things that
 // matter (the target, the board, the ball, the keeper), the way the app
@@ -12,6 +20,11 @@
 // at -x when it looks that way, so v3() flips x on the way in.
 
 import * as THREE from "three";
+import { EffectComposer } from "../vendor/three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "../vendor/three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "../vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "../vendor/three/examples/jsm/postprocessing/OutputPass.js";
+import { SMAAPass } from "../vendor/three/examples/jsm/postprocessing/SMAAPass.js";
 
 export { THREE };
 
@@ -30,6 +43,18 @@ const worlds = {};
 let current = null;
 let width = 1;
 let height = 1;
+// High graphics' post-processing, made the first time it is needed.
+let post = null;
+
+// Bloom: only what is brighter than white glows, so a sunlit white line
+// gets a faint halo and a lightning bolt, drawn far brighter than white,
+// lights up the sky round it.
+const BLOOM = { strength: 0.32, radius: 0.38, threshold: 1.0 };
+const MSAA_SAMPLES = 4;
+
+// Whether shadows are drawn: the worlds that fake a shadow for Low (a dark
+// disc under the ball) hide it when the real one is there.
+export const shadowsOn = () => quality === "high" && Boolean(renderer?.shadowMap.enabled);
 
 export const v3 = (x, y, z, out = new THREE.Vector3()) => out.set(-x, y, z);
 
@@ -176,7 +201,9 @@ export function motes(scene, { box = [12, 4, 30], centre = [0, 2, 15], count = 1
 export function initStage(el) {
   canvas = el;
   try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: quality === "high", alpha: false, powerPreference: "high-performance" });
+    // No antialias on the canvas itself: High smooths edges in its own
+    // multisampled target, and Low does without.
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: "high-performance" });
   } catch {
     renderer = null;
     return false;
@@ -209,9 +236,52 @@ function resize() {
   if (!renderer) return;
   width = window.innerWidth;
   height = window.innerHeight;
-  renderer.setPixelRatio(quality === "high" ? Math.min(window.devicePixelRatio || 1, 2) : 1);
+  const ratio = quality === "high" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+  renderer.setPixelRatio(ratio);
   renderer.setSize(width, height, false);
+  if (post) {
+    post.composer.setPixelRatio(ratio);
+    post.composer.setSize(width, height);
+  }
   for (const w of Object.values(worlds)) w.resize(width, height);
+}
+
+/* ---- post-processing ---- */
+
+function makePost() {
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+  const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: MSAA_SAMPLES });
+  const composer = new EffectComposer(renderer, target);
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(width, height);
+  const scenePass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
+  // The bow and the dart in hand, over everything, in the same target so
+  // they are smoothed and glow with the rest.
+  const overlayPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
+  overlayPass.clear = false;
+  overlayPass.clearDepth = true;
+  const bloom = new UnrealBloomPass(new THREE.Vector2(width, height), BLOOM.strength, BLOOM.radius, BLOOM.threshold);
+  composer.addPass(scenePass);
+  composer.addPass(overlayPass);
+  composer.addPass(bloom);
+  // Into the screen's colour space, then the edges.
+  composer.addPass(new OutputPass());
+  composer.addPass(new SMAAPass());
+  return { composer, scenePass, overlayPass, bloom };
+}
+
+function usePost() {
+  if (quality !== "high") return null;
+  if (!post) {
+    try {
+      post = makePost();
+    } catch {
+      // A device that cannot: draw it plainly.
+      quality = "low";
+      return null;
+    }
+  }
+  return post;
 }
 
 export const stageSize = () => ({ width, height });
@@ -236,6 +306,20 @@ export const world = () => current;
 export function render(info) {
   if (!renderer || !current) return;
   current.update(info);
+  const p = usePost();
+  if (p) {
+    p.scenePass.scene = current.scene;
+    p.scenePass.camera = current.camera;
+    p.overlayPass.enabled = Boolean(current.overlay);
+    if (current.overlay) {
+      p.overlayPass.scene = current.overlay.scene;
+      p.overlayPass.camera = current.overlay.camera;
+    }
+    // A world can turn the glow up for a moment: lightning.
+    p.bloom.strength = BLOOM.strength * (current.bloomBoost?.() ?? 1);
+    p.composer.render(info.dt ? info.dt / 1000 : undefined);
+    return;
+  }
   renderer.autoClear = true;
   renderer.render(current.scene, current.camera);
   // In front of everything: the bow, the dart in hand.

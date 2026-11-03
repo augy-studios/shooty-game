@@ -1,8 +1,8 @@
-// What every game's turns share: the wind, the sway of a hand that is never
+// What every game's turns share: the weather, the wind, the sway of a hand that is never
 // quite still, the arm tiring, and how much a shot matters. Pure, no DOM;
 // js/sim.js and every js/sim-<game>.js use it.
 
-import { unit, SALT } from "./seed.js";
+import { unit, mix, SALT } from "./seed.js";
 import { sin, TAU, PI } from "./fmath.js";
 
 // The wind for turn i: a direction anywhere round the compass and a speed
@@ -45,8 +45,39 @@ export function sway(seedNum, i, ms, amp, bpm = 72) {
 export const fatigue = (holdMs) => 1 + Math.min(1, Math.max(0, (holdMs - 4000) / 6000));
 
 // The pressure on a shot, 0 to 1, from what the game says about it.
-export function pressureOf({ progress = 0, close = 0, decisive = 0, clock = 0 }) {
+// Rain adds to it (`tension`, from the weather): wet hands, a slippery
+// footing and thunder overhead keep a player on edge.
+export function pressureOf({ progress = 0, close = 0, decisive = 0, clock = 0, tension = 0 }) {
   const tight = clock === 3 ? 0.1 : clock === 5 ? 0.05 : 0;
-  const p = 0.15 * progress + 0.45 * close * (0.4 + 0.6 * progress) + 0.35 * decisive + tight;
+  const p = 0.15 * progress + 0.45 * close * (0.4 + 0.6 * progress) + 0.35 * decisive + tight + tension;
   return Math.round(Math.min(1, Math.max(0, p)) * 100) / 100;
+}
+
+/* ---- the weather ---- */
+
+// The games played outdoors. Darts is in a room, so it never rains on it.
+export const OUTDOOR = { archery: true, darts: false, hoops: true, kicks: true };
+
+// Dry: what every match was before rules 2, and every indoor one.
+export const DRY = Object.freeze({ kind: "dry", wet: 0, tension: 0, label: "Dry" });
+
+// The whole match's weather, from the seed. Outdoors, one match in five is
+// played in light rain with the odd roll of distant thunder; on Hard three
+// in five are, and that rain is a thunderstorm: heavier, with lightning
+// close enough to see and thunder close behind it.
+//
+//   wet       0 to 1, how slippery the ball, the hands and every surface
+//             are; each game's file says what it does
+//   tension   added to every shot's pressure (js/sim-shared.js pressureOf)
+//
+// Rules 1 had no weather, so its records play out as they always did.
+export function weatherFor(seedNum, game, difficulty, rules) {
+  if (rules < 2 || !OUTDOOR[game]) return DRY;
+  const hard = difficulty === "hard";
+  // Fifths, so the odds are exact: 1 in 5, or 3 in 5 on Hard.
+  const fifth = mix(mix(seedNum, 0x5eed), SALT.weather) % 5;
+  if (fifth >= (hard ? 3 : 1)) return DRY;
+  return hard
+    ? Object.freeze({ kind: "storm", wet: 1, tension: 0.08, label: "Thunderstorm" })
+    : Object.freeze({ kind: "rain", wet: 0.6, tension: 0.05, label: "Light rain" });
 }

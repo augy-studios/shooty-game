@@ -2,7 +2,7 @@
 // again, and nothing it can work out for itself.
 //
 // {
-//   v: 1,                          the rules it was played by
+//   v: 2,                          the rules it was played by
 //                                  (js/rules.js's RULES_VERSION)
 //   game: "archery" | "darts" | "hoops" | "kicks",
 //   mode: "bot" | "local" | "party",
@@ -30,12 +30,12 @@
 // UTF-8. A whole match is a few hundred characters.
 
 import {
-  RULES_VERSION, GAME_IDS, MODES, DIFFICULTIES, LENGTHS, CLOCKS, MAX_SHOTS, MAX_GAME_MS,
+  RULES_VERSION, READABLE_RULES, GAME_IDS, MODES, DIFFICULTIES, LENGTHS, CLOCKS, MAX_SHOTS, MAX_GAME_MS,
 } from "./rules.js";
 import { cleanSeed } from "./seed.js";
 
 export const RECORD_VERSION = RULES_VERSION;
-const READABLE = [1];
+const READABLE = READABLE_RULES;
 
 const LETTER = {
   game: { archery: "a", darts: "d", hoops: "h", kicks: "k" },

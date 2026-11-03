@@ -7,22 +7,38 @@ import { THREE, mesh, mat, outline, v3 } from "./scene.js";
 const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
 // A tree: a trunk and two or three blocky canopies stacked off-centre.
+// The lowest canopy sits down over the top of the trunk and each one above
+// overlaps the one below, so the leaves are always held up by the wood;
+// every size here is already scaled, so nothing is scaled twice.
+const TRUNK_H = 2.6;
+// How far the lowest canopy comes down over the top of the trunk.
+const SEAT = 0.35;
 export function tree(scene, x, z, scale = 1, rand = Math.random) {
   const g = new THREE.Group();
-  const trunk = mesh(box(0.5 * scale, 2.6 * scale, 0.5 * scale), 0x9b5a3c);
-  trunk.position.y = 1.3 * scale;
+  const trunkH = TRUNK_H * scale;
+  const trunk = mesh(box(0.5 * scale, trunkH, 0.5 * scale), 0x9b5a3c);
+  trunk.position.y = trunkH / 2;
   g.add(trunk);
   const greens = [0x3fae49, 0x57c25a, 0x2f9a40];
   const n = 2 + Math.floor(rand() * 2);
+  // Where the next canopy's bottom goes.
+  let base = trunkH - SEAT * scale;
   for (let i = 0; i < n; i++) {
     const w = (2.2 + rand() * 1.6) * scale;
     const h = (1.4 + rand() * 0.9) * scale;
     const c = mesh(box(w, h, w * 0.8), greens[i % greens.length]);
-    c.position.set((rand() - 0.5) * 1.4 * scale, (2.6 + i * 0.9 + h / 2) * scale, (rand() - 0.5) * 0.8 * scale);
+    // Off-centre, but never so far that the canopy's middle leaves the
+    // trunk: half the narrowest canopy is 1.1, the offset at most 0.5.
+    const ox = i === 0 ? (rand() - 0.5) * 0.6 * scale : (rand() - 0.5) * 1.0 * scale;
+    const oz = (rand() - 0.5) * 0.5 * scale;
+    c.position.set(ox, base + h / 2, oz);
     g.add(c);
-    // A lighter patch on the front face, the way the icon highlights.
+    // The next one overlaps this one by about a third of its height.
+    base += h * 0.62;
+    // A lighter patch on the front face, the way the icon highlights,
+    // flush with it.
     const patch = new THREE.Mesh(box(w * 0.38, h * 0.32, 0.02), mat(0x8fdc7f));
-    patch.position.set(c.position.x - w * 0.15, c.position.y + h * 0.18, c.position.z - (w * 0.8) / 2 - 0.02);
+    patch.position.set(c.position.x - w * 0.15, c.position.y + h * 0.18, c.position.z - (w * 0.8) / 2 - 0.009);
     g.add(patch);
   }
   g.position.copy(v3(x, 0, z));

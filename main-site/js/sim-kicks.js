@@ -14,6 +14,12 @@
 // bends it that way (the Magnus effect) on its way in. The wind moves it
 // too, and nerves shake the aim more on the kicks that decide it.
 //
+// In the rain (cond.wet, js/sim-shared.js weatherFor) the standing foot
+// slides as it plants, so a kick spreads more; a wet ball skids on off
+// the grass instead of checking; it squirts off a keeper's wet gloves
+// rather than sticking; and the keeper, pushing off wet turf, gets across
+// a little slower.
+//
 // Shots, as recorded:
 //   a kick  [press ms, release ms, aim x mm, aim y mm, power permille,
 //           curl permille], the aim on the goal line before the sway
@@ -41,6 +47,16 @@ export const MAX_SPEED = 31;
 const EXTRA = 5;
 // A person sent diving moves this fast towards the spot they picked.
 const HUMAN_DIVE = 4.2;
+
+// The wet versions of everything rain changes; dry, exactly the old ones.
+const wetMul = (wet, k) => (wet ? 1 + k * wet : 1);
+const DRY_GROUND = [0.55, 0.88];
+const DRY_GLOVES = [0.35, 0.55];
+const groundOf = (wet) => (wet ? [0.55 - 0.1 * wet, 0.88 + 0.1 * wet] : DRY_GROUND);
+const glovesOf = (wet) => (wet ? [0.35 + 0.2 * wet, 0.55 + 0.2 * wet] : DRY_GLOVES);
+// A keeper's dive speed and reaction off wet turf.
+const diveOf = (wet, speed) => (wet ? speed * (1 - 0.06 * wet) : speed);
+const reactOf = (wet, ms) => (wet ? ms + 30 * wet : ms);
 
 const TUNING = {
   easy: { wind: 3, sway: 0.1, err: 0.1, read: 0.3, react: 320, dive: 3.3, botSd: 0.6, adapt: 0.15, botPower: 0.45 },
@@ -119,8 +135,8 @@ export const kicks = {
     const base = ctx.base("kicks", wind, pressure);
     return {
       ...base,
-      swayAmp: g.t.sway * base.nerves,
-      errSd: g.t.err * base.nerves,
+      swayAmp: g.t.sway * base.nerves * wetMul(base.wet, 0.15),
+      errSd: g.t.err * base.nerves * wetMul(base.wet, 0.35),
       // The bot's run up, when it is the one kicking: when its foot meets
       // the ball, from the start of the aim.
       kickMs: 1500 + Math.floor(800 * unit(ctx.seedNum, ctx.i, SALT.botTime, 0)),
@@ -187,7 +203,7 @@ export const kicks = {
       const [tap, dx, dy] = shot;
       release = cond.kickMs;
       kick = botKick(g, cond, ctx, tap, dx / 1000);
-      plan = tap < 0 ? null : divePlan(tap - release, dx / 1000, dy / 1000, HUMAN_DIVE);
+      plan = tap < 0 ? null : divePlan(tap - release, dx / 1000, dy / 1000, diveOf(cond.wet, HUMAN_DIVE));
     } else {
       release = shot[1];
       kick = shot;
@@ -203,11 +219,13 @@ export const kicks = {
       // guesses a side.
       const u = unit(ctx.seedNum, ctx.i, SALT.keeper, 0);
       const t = g.t;
+      const react = reactOf(cond.wet, t.react);
+      const dive = diveOf(cond.wet, t.dive);
       if (u < t.read) {
-        return divePlan(t.react, aim.x + gauss(ctx.seedNum, ctx.i, SALT.keeper, 1) * 0.35, aim.y + gauss(ctx.seedNum, ctx.i, SALT.keeper, 2) * 0.25, t.dive);
+        return divePlan(react, aim.x + gauss(ctx.seedNum, ctx.i, SALT.keeper, 1) * 0.35, aim.y + gauss(ctx.seedNum, ctx.i, SALT.keeper, 2) * 0.25, dive);
       }
       const side = unit(ctx.seedNum, ctx.i, SALT.keeper, 3) < 0.5 ? -1 : 1;
-      return divePlan(t.react, side * (1.2 + 1.8 * unit(ctx.seedNum, ctx.i, SALT.keeper, 4)), 0.3 + 1.5 * unit(ctx.seedNum, ctx.i, SALT.keeper, 5), t.dive);
+      return divePlan(react, side * (1.2 + 1.8 * unit(ctx.seedNum, ctx.i, SALT.keeper, 4)), 0.3 + 1.5 * unit(ctx.seedNum, ctx.i, SALT.keeper, 5), dive);
     });
     const raw = [0, 0];
     const top = flight.goal && Math.abs(flight.cross.x) > 2.6 && flight.cross.y > 1.55;
@@ -281,11 +299,12 @@ export const kicks = {
 // well before the kick may be read, and the bot goes the other way.
 function botKick(g, cond, ctx, tap, diveX) {
   const t = g.t;
+  const sd = t.botSd * wetMul(cond.wet, 0.35);
   const u = (k) => unit(ctx.seedNum, ctx.i, SALT.botAim, k);
   let side = u(0) < 0.5 ? -1 : 1;
   if (tap >= 0 && tap < cond.kickMs - 120 && u(1) < t.adapt && Math.sign(diveX) === side) side = -side;
-  const x = side * (1.6 + 1.6 * u(2)) + gauss(ctx.seedNum, ctx.i, SALT.botAim, 3) * t.botSd * cond.nerves;
-  const y = 0.3 + 1.7 * u(4) + gauss(ctx.seedNum, ctx.i, SALT.botAim, 4) * t.botSd * 0.6 * cond.nerves;
+  const x = side * (1.6 + 1.6 * u(2)) + gauss(ctx.seedNum, ctx.i, SALT.botAim, 3) * sd * cond.nerves;
+  const y = 0.3 + 1.7 * u(4) + gauss(ctx.seedNum, ctx.i, SALT.botAim, 4) * sd * 0.6 * cond.nerves;
   const power = Math.round(Math.min(1, Math.max(0, t.botPower + 0.2 * (u(5) - 0.5))) * 1000);
   const curl = Math.round((u(6) - 0.5) * 500);
   return [cond.kickMs - 450, cond.kickMs, Math.round(x * 1000), Math.round(y * 1000), power, curl];
@@ -312,6 +331,8 @@ function kickFlight(cond, ctx, kick, keeper) {
   const spin = 0.24 * (curl / 1000) * (speed / 25);
   const air = { wx: cond.wind.x, wz: cond.wind.z, k: K, spin };
   const plan = keeper(aim);
+  const ground = groundOf(cond.wet);
+  const gloves = glovesOf(cond.wet);
   const path = newPath();
   record(path, b, true);
 
@@ -355,7 +376,7 @@ function kickFlight(cond, ctx, kick, keeper) {
         b.x = c.cx + nx * (BALL + reach);
         b.y = c.cy + ny * (BALL + reach);
         b.z = c.cz + nz * (BALL + reach);
-        if (reflect(b, nx, ny, nz, 0.35, 0.55)) {
+        if (reflect(b, nx, ny, nz, gloves[0], gloves[1])) {
           if (!saved) {
             saved = true;
             decidedAt = t;
@@ -406,7 +427,7 @@ function kickFlight(cond, ctx, kick, keeper) {
     // The ground.
     if (b.y < BALL) {
       b.y = BALL;
-      reflect(b, 0, 1, 0, 0.55, 0.88);
+      reflect(b, 0, 1, 0, ground[0], ground[1]);
     }
 
     path.steps += 1;

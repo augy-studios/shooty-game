@@ -151,6 +151,7 @@
         <div class="hud-chips">
             <span class="chip wind-chip" id="windChip"><span class="wind-arrow" id="windArrow" data-icon="arrowUp"></span><span id="windText"></span></span>
             <span class="chip nerve-chip" id="nerveChip"><span class="nerve-heart" data-icon="heartFilled"></span><span id="nerveText"></span></span>
+            <span class="chip weather-chip hidden" id="weatherChip"><span class="weather-icon" id="weatherIcon" data-icon="rain"></span><span id="weatherText"></span></span>
             <span class="chip" id="clockChip" role="timer"></span>
             <span class="chip" id="roundChip"></span>
         </div>
@@ -433,7 +434,7 @@
                 <button class="mode-btn" type="button" role="radio" aria-checked="true" data-quality="high">High</button>
                 <button class="mode-btn" type="button" role="radio" aria-checked="false" data-quality="low">Low</button>
             </div>
-            <p class="mode-note">Low draws fewer pixels and no shadows, for a smoother game on a slower device.</p>
+            <p class="mode-note">High smooths every edge and lets bright light glow. Low draws fewer pixels, no shadows and no glow, for a smoother game on a slower device.</p>
 
             <p class="mode-note">
                 From the keyboard: in Archery hold Space to draw, aim with the arrow keys and let go; in Darts,

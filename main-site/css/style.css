@@ -242,13 +242,23 @@ body {
   50% { opacity: 0.6; }
 }
 .wind-arrow,
-.nerve-heart {
+.nerve-heart,
+.weather-icon {
   display: inline-flex;
   width: 16px;
   height: 16px;
 }
 .wind-arrow svg,
-.nerve-heart svg { width: 100%; height: 100%; }
+.nerve-heart svg,
+.weather-icon svg { width: 100%; height: 100%; }
+/* Rain on the match: wet and slippery. A storm's chip flickers now and
+   then, the way the sky does. */
+.weather-chip { color: var(--ink); }
+.weather-chip.storm .weather-icon { animation: flicker 7s steps(1, end) infinite; }
+@keyframes flicker {
+  0%, 92%, 95%, 100% { opacity: 1; }
+  93%, 96% { opacity: 0.35; }
+}
 /* Where the wind blows to, seen from the shooter: up is down the range. */
 .wind-arrow {
   rotate: var(--wind-deg, 0deg);
@@ -1204,5 +1214,5 @@ body {
     transition-duration: 0.001ms !important;
     transition-delay: 0s !important;
   }
-  .chip.warn, .tap-hint, .nerve-heart, .callout { animation: none; }
+  .chip.warn, .tap-hint, .nerve-heart, .callout, .weather-chip.storm .weather-icon { animation: none; }
 }

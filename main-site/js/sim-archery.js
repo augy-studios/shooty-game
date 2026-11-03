@@ -13,6 +13,12 @@
 // the wind speed times how much later it arrives than it would in a
 // vacuum. At 70 m in a 9 m/s wind that is most of the face.
 //
+// In the rain (cond.wet, js/sim-shared.js weatherFor) the grip on the bow
+// is slick and the footing soft, so the reticle sways more, and wet
+// fletching sits ragged and drags a little more, so an arrow drops a
+// touch lower than the sight allows for and the wind has longer to push
+// it. Rain itself barely moves an arrow over these distances.
+//
 // Shot, as recorded: [draw ms, release ms, aim x mm, aim y mm], the times
 // from the start of the aim and the aim where the player's finger held the
 // reticle, before the sway. A draw of -1 is a shot clock that ran out with
@@ -100,7 +106,8 @@ export const archery = {
       clock: ctx.settings.clock,
     });
     const base = ctx.base("archery", wind, pressure);
-    return { ...base, distance, swayAmp: g.t.sway * distance * base.nerves };
+    const wet = base.wet ? 1 + 0.12 * base.wet : 1;
+    return { ...base, distance, swayAmp: g.t.sway * distance * base.nerves * wet, botSd: g.t.botSd * wet };
   },
 
   inputOf(desc, humans) {
@@ -144,8 +151,8 @@ export const archery = {
     // What the wind does to an arrow loosed at the middle, which the bot
     // reads and allows for, some of it.
     const drift = fly(cond, 0, 0, d, null);
-    const ax = -drift.x * g.t.botComp + gauss(ctx.seedNum, ctx.i, SALT.botAim, 0) * g.t.botSd * d * cond.nerves;
-    const ay = -(drift.y - FACE_Y) * g.t.botComp + gauss(ctx.seedNum, ctx.i, SALT.botAim, 1) * g.t.botSd * d * cond.nerves;
+    const ax = -drift.x * g.t.botComp + gauss(ctx.seedNum, ctx.i, SALT.botAim, 0) * cond.botSd * d * cond.nerves;
+    const ay = -(drift.y - FACE_Y) * g.t.botComp + gauss(ctx.seedNum, ctx.i, SALT.botAim, 1) * cond.botSd * d * cond.nerves;
     // It holds steady by timing its release, so take off the sway it will
     // have then.
     const s = this.reticle(cond, ctx, draw, release, 0, 0);
@@ -242,7 +249,8 @@ function fly(cond, x, y, d, path) {
   const v = solveLaunch(BOW, target, SPEED, { k: K }, steps);
   const b = body(BOW.x, BOW.y, BOW.z, v.x, v.y, v.z);
   if (path) record(path, b, true);
-  const air = { wx: cond.wind.x, wz: cond.wind.z, k: K, spin: 0 };
+  // Sighted dry; wet fletching drags a little more than that.
+  const air = { wx: cond.wind.x, wz: cond.wind.z, k: cond.wet ? K * (1 + 0.05 * cond.wet) : K, spin: 0 };
   const hit = toPlane(b, air, d, steps, path, 0);
   return { ...hit, body: b, air, steps: path ? path.steps : 0 };
 }

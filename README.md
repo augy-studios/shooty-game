@@ -3,7 +3,8 @@
 Four games of aim against the wind: Archery, Darts, Hoops and Kicks. Every
 shot is flown through real physics, pushed by the wind on that shot, and
 aimed by hands that sway, and sway more on the shots that decide the
-match. Play the bot at Easy, Medium or Hard, or a friend on the same
+match. Outdoors it sometimes rains, and on Hard it storms: everything is
+slippery, and the thunder does nobody's nerves any good. Play the bot at Easy, Medium or Hard, or a friend on the same
 device or the same wifi. Every match has a seed that can be copied and
 played again, an instant replay that can be stepped through shot by shot,
 a replay link to share, and each game has its own leaderboards.
@@ -85,7 +86,10 @@ node scripts/test-verify.mjs       # the API's check on a match, without a datab
 still open in someone's tab stop verifying, since the API plays every match
 again with the code it has now, and old replay links play out differently.
 Bump `RULES_VERSION` in `js/rules.js` for any change that alters how a
-record plays or scores.
+record plays or scores, and add it to `READABLE_RULES`. A record carries
+the version it was played by and `js/sim.js` plays it by that version:
+rules 2 brought the rain, so a rules 1 record (an old replay link) still
+plays out dry, exactly as it did.
 
 ## The physics is the same everywhere
 
@@ -126,5 +130,10 @@ whistle are short clips from [myinstants.com](https://www.myinstants.com),
 trimmed and normalised (`main-site/sounds/`). Clips ripped from games or
 films were left alone; these are general sound effects, but myinstants is
 user uploaded and gives no licence, so check them before relying on them.
-The kick is stack-game's `SoccerKick.wav`. The bowstring, the bow's creak,
+The kick is stack-game's `SoccerKick.wav`. The rain (`Rain.mp3`, looped)
+and the thunder (`Thunder.mp3`, played quieter and through a lower
+low-pass filter the further off its strike is, as air soaks up a sound's
+high notes over distance) were added with the weather; check their source
+and licence too. `RainAndThunder.mp3` is not used: its thunder would not
+line up with the lightning. The bowstring, the bow's creak,
 the wind and the heartbeat are synthesised in `js/audio.js`.

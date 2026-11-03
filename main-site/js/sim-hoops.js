@@ -13,6 +13,11 @@
 // second moves a long shot by most of the rim's width. On Hard the hoop
 // itself drifts slowly side to side as well, and has to be led.
 //
+// In the rain (cond.wet, js/sim-shared.js weatherFor) a rubber ball is
+// slick in the hand, so the aim and the pull wander more, and it skids
+// instead of gripping: off a wet rim and glass it keeps more of its speed
+// along them, and off a wet court it comes up lower and slides on.
+//
 // Shot, as recorded: [press ms, release ms, aim centidegrees, power
 // permille]: when the pull began and was let go, from the start of the
 // aim; the aim left or right of straight at the hoop; the pull's length.
@@ -52,6 +57,21 @@ const TUNING = {
   hard: { wind: 3.4, yaw: 0.6, power: 8, botYaw: 0.35, botPower: 0.0035, botComp: 0.92, drift: 0.5 },
 };
 const DRIFT_PERIOD = 4200;
+
+// What the ball does off each surface: the share of its speed into the
+// surface that comes back, and of its speed along it that stays. Wet, the
+// grip goes towards 1, which is no friction at all.
+const DRY_SURFACES = { board: [0.62, 0.85], rim: [0.58, 0.82], floor: [0.72, 0.9] };
+function surfaces(wet) {
+  if (!wet) return DRY_SURFACES;
+  return {
+    board: [0.62, 0.85 + 0.1 * wet],
+    rim: [0.58 - 0.02 * wet, 0.82 + 0.1 * wet],
+    floor: [0.72 - 0.06 * wet, 0.9 + 0.06 * wet],
+  };
+}
+// How much more a wet ball's aim and pull wander, in the hand.
+const slipOf = (wet) => (wet ? 1 + 0.08 * wet : 1);
 
 const int = (v) => Number.isInteger(v);
 export const speedOf = (power) => MIN_SPEED + ((MAX_SPEED - MIN_SPEED) * power) / 1000;
@@ -109,6 +129,7 @@ export const hoops = {
       clock: ctx.settings.clock,
     });
     const base = ctx.base("hoops", wind, pressure);
+    const slip = slipOf(base.wet);
     const cond = {
       ...base,
       radius,
@@ -117,8 +138,9 @@ export const hoops = {
       from,
       toward,
       three: radius >= THREE,
-      yawAmp: g.t.yaw * base.nerves,
-      powerAmp: g.t.power * base.nerves,
+      slip,
+      yawAmp: g.t.yaw * base.nerves * slip,
+      powerAmp: g.t.power * base.nerves * slip,
       drift: g.t.drift,
       driftPhase: TAU * unit(ctx.seedNum, ctx.i, SALT.drift, 0),
     };
@@ -183,8 +205,9 @@ export const hoops = {
     }
     let yaw = yawFix * g.t.botComp;
     let speed = cond.ideal + (speedFix - cond.ideal) * g.t.botComp;
-    yaw += gauss(ctx.seedNum, ctx.i, SALT.botAim, 0) * g.t.botYaw * cond.nerves;
-    speed *= 1 + gauss(ctx.seedNum, ctx.i, SALT.botAim, 1) * g.t.botPower * cond.nerves;
+    // The bot's hands are as wet as anyone's.
+    yaw += gauss(ctx.seedNum, ctx.i, SALT.botAim, 0) * g.t.botYaw * cond.nerves * cond.slip;
+    speed *= 1 + gauss(ctx.seedNum, ctx.i, SALT.botAim, 1) * g.t.botPower * cond.nerves * cond.slip;
     // It times its release against its own sway, so take that off.
     const s = this.aimAt(cond, ctx, press, release, 0, 500);
     const power = Math.round(powerOf(speed) - (s.power - 500));
@@ -258,6 +281,7 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
   const v = launch(cond, yawDeg, speed);
   const b = body(cond.from.x, cond.from.y, cond.from.z, v.x, v.y, v.z);
   const air = { wx: still ? 0 : cond.wind.x, wz: still ? 0 : cond.wind.z, k: K, spin: 0 };
+  const surf = surfaces(cond.wet);
   if (path) record(path, b, true);
   let made = false;
   let madeAt = 0;
@@ -277,7 +301,7 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
     // The backboard's face.
     if (b.vz > 0 && b.z + BALL > BOARD_Z && b.z < BOARD_Z + 0.05 && Math.abs(b.x - hx) < BOARD.half && b.y > BOARD.bottom - BALL * 0.5 && b.y < BOARD.top) {
       b.z = BOARD_Z - BALL;
-      reflect(b, 0, 0, -1, 0.62, 0.85);
+      reflect(b, 0, 0, -1, surf.board[0], surf.board[1]);
       board = true;
     }
 
@@ -300,7 +324,7 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
         b.x = qx + nx * (BALL + TUBE);
         b.y = RIM_Y + ny * (BALL + TUBE);
         b.z = qz + nz * (BALL + TUBE);
-        if (reflect(b, nx, ny, nz, 0.58, 0.82)) rims += 1;
+        if (reflect(b, nx, ny, nz, surf.rim[0], surf.rim[1])) rims += 1;
       }
     }
 
@@ -325,7 +349,7 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
     // The floor.
     if (b.y < BALL) {
       b.y = BALL;
-      reflect(b, 0, 1, 0, 0.72, 0.9);
+      reflect(b, 0, 1, 0, surf.floor[0], surf.floor[1]);
       floor += 1;
       if (!made && !decidedAt) decidedAt = t;
     }
