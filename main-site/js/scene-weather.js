@@ -664,13 +664,16 @@ export function weather(scene, { light, clouds, box, centre, near = 1.4, ground,
 
   /* the sky and the light, as the world set them for day or dusk */
   let dusk = false;
-  const base = { sky: new THREE.Color(), fog: new THREE.Color(), near: 0, far: 0, cloud: new THREE.Color(), hemi: 0, dir: 0 };
+  // The fog's reach is the same by day and at dusk, so it is read once,
+  // here, while it is still the world's own. Read again on every change
+  // of mode, it was read after the rain had already pulled it in, and the
+  // rain pulled that in again: a few quick switches between light and dark
+  // in the rain and the fog closed in on the camera until nothing showed.
+  const base = { sky: new THREE.Color(), fog: new THREE.Color(), near: scene.fog.near, far: scene.fog.far, cloud: new THREE.Color(), hemi: 0, dir: 0 };
   function setMode(isDusk) {
     dusk = isDusk;
     base.sky.copy(scene.background);
     base.fog.copy(scene.fog.color);
-    base.near = scene.fog.near;
-    base.far = scene.fog.far;
     base.cloud.copy(clouds.material.color);
     base.hemi = light.hemi.intensity;
     base.dir = light.dir.intensity;
