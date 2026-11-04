@@ -137,8 +137,14 @@ export function create({ renderer }) {
     back.rotation.x = -0.45;
     target.add(back);
   }
-  const face = new THREE.Mesh(new THREE.CircleGeometry(FACE_R, 64), new THREE.MeshBasicMaterial({ map: faceTexture() }));
-  face.position.set(0, FACE_Y, -0.002);
+  // The face sits a hair in front of the boss. At 90 m that hair is finer
+  // than the depth buffer can tell apart, and the boss broke through it in
+  // wedges and speckles; the polygon offset always draws the face in front.
+  const face = new THREE.Mesh(
+    new THREE.CircleGeometry(FACE_R, 64),
+    new THREE.MeshBasicMaterial({ map: faceTexture(), polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }),
+  );
+  face.position.set(0, FACE_Y, -0.005);
   face.rotation.y = Math.PI;
   target.add(face);
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.2), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18 }));
@@ -187,7 +193,10 @@ export function create({ renderer }) {
     }
   }
 
-  const camera = new THREE.PerspectiveCamera(12, 1, 0.1, 600);
+  // Nothing the sight sees is within a metre of the eye (the rain fades
+  // out by 15 m, the bow has its own camera), and the further out the near
+  // plane, the finer the depth buffer at the target.
+  const camera = new THREE.PerspectiveCamera(12, 1, 1, 600);
   camera.position.copy(v3(EYE.x, EYE.y, EYE.z));
 
   // The bow, drawn over everything from its own camera.
