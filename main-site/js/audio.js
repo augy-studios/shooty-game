@@ -10,6 +10,12 @@
 // synthesised with Web Audio, so they can follow what is happening: the
 // wind louder in a gale, the heart faster on the shot that matters.
 //
+// The rain and the thunder go through a bus of their own, which ducks
+// under every sound of the game: a storm is as loud as the ball and the
+// rim, and its thunder far louder, so without it a shot in a thunderstorm
+// was lost in the weather. It dips to half for as long as the sound lasts
+// (a second at most) and swells back.
+//
 // Nothing plays until the first tap, which is when a browser allows an
 // AudioContext to start.
 
@@ -46,6 +52,9 @@ const THUNDER_TAKES = [
 
 let ctx = null;
 let master = null;
+let weatherBus = null;
+let duckUntil = 0;
+const DUCK = 0.5;
 const buffers = {};
 let wind = null;
 let rain = null;
@@ -59,6 +68,8 @@ function ensure() {
   master = ctx.createGain();
   master.gain.value = muted ? 0 : 0.9;
   master.connect(ctx.destination);
+  weatherBus = ctx.createGain();
+  weatherBus.connect(master);
   for (const [name, url] of Object.entries(FILES)) {
     fetch(url)
       .then((r) => r.arrayBuffer())
@@ -85,8 +96,24 @@ export function setMuted(on) {
 
 const enabled = () => ctx && !muted && getSettings().sound;
 
+// The weather dips from `at` for `seconds`, then swells back. Overlapping
+// dips run into one.
+function duck(at, seconds) {
+  const g = weatherBus.gain;
+  const now = ctx.currentTime;
+  const ducked = now < duckUntil;
+  duckUntil = Math.max(duckUntil, at + Math.min(1, seconds));
+  g.cancelScheduledValues(now);
+  g.setValueAtTime(ducked ? DUCK : g.value, now);
+  if (!ducked) g.setValueAtTime(g.value, Math.max(now, at - 0.01));
+  g.linearRampToValueAtTime(DUCK, Math.max(now, at - 0.01) + 0.04);
+  g.setValueAtTime(DUCK, duckUntil);
+  g.linearRampToValueAtTime(1, duckUntil + 0.5);
+}
+
 export function play(name, { volume = 1, rate = 1, delay = 0 } = {}) {
   if (!enabled() || !buffers[name]) return;
+  duck(ctx.currentTime + delay, buffers[name].duration / rate);
   const src = ctx.createBufferSource();
   src.buffer = buffers[name];
   src.playbackRate.value = rate;
@@ -108,6 +135,7 @@ function noiseBuffer(seconds) {
 export function twang(strength = 1) {
   if (!enabled()) return;
   const t = ctx.currentTime;
+  duck(t, 0.3);
   const osc = ctx.createOscillator();
   osc.type = "triangle";
   osc.frequency.setValueAtTime(180, t);
@@ -214,7 +242,7 @@ export function setRain(level) {
     src.loopEnd = Math.max(1, buffers.rain.duration - 0.6);
     const gain = ctx.createGain();
     gain.gain.value = 0;
-    src.connect(gain).connect(master);
+    src.connect(gain).connect(weatherBus);
     src.start(0, 0.6);
     rain = { gain };
   }
@@ -246,7 +274,7 @@ export function thunder(km, pick = Math.random()) {
   gain.gain.linearRampToValueAtTime(peak, at + 0.05 + 0.03 * km);
   gain.gain.setValueAtTime(peak, at + Math.max(0.1, seconds - 0.8));
   gain.gain.linearRampToValueAtTime(0, at + seconds);
-  src.connect(filter).connect(gain).connect(master);
+  src.connect(filter).connect(gain).connect(weatherBus);
   src.start(at, from, seconds * rate);
 }
 
@@ -258,6 +286,7 @@ export function playSplash(strength = 0.6) {
   const src = ctx.createBufferSource();
   src.buffer = buffers.splash;
   src.playbackRate.value = (1.5 - 0.45 * strength) * (0.95 + Math.random() * 0.1);
+  duck(ctx.currentTime, buffers.splash.duration / src.playbackRate.value);
   const gain = ctx.createGain();
   gain.gain.value = 0.15 + 0.45 * strength;
   src.connect(gain).connect(master);

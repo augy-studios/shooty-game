@@ -491,6 +491,9 @@ function calloutFor(turn) {
   return ["", false];
 }
 
+// How far back a shot just played live is still heard from, game ms.
+const CATCH_UP_MS = 400;
+
 function soundsAt(turn, t, from) {
   if (turn.release !== undefined && from < turn.release && t >= turn.release && !turn.result?.none) {
     if (S.game === "archery") {
@@ -538,7 +541,8 @@ function soundsAt(turn, t, from) {
   if (S.game === "hoops" && turn.result && !turn.result.none && from < turn.impact + 350 && t >= turn.impact + 350 && !turn.result.made) {
     play("bounce", { volume: 0.5 });
   }
-  if (S.game === "kicks" && turn.input === "keep" && turn.release !== undefined && from < turn.aimStart + 200 && t >= turn.aimStart + 200) {
+  // The whistle for the bot's kick, heard while the keeper still waits too.
+  if (S.game === "kicks" && turn.input === "keep" && from < turn.aimStart + 200 && t >= turn.aimStart + 200) {
     play("whistle", { volume: 0.5 });
   }
 }
@@ -707,13 +711,26 @@ function frame(now) {
   const info = { state, t, turn, phase: fr.phase, since: fr.since, aim, preview: turn === state.next ? S.keepPreview : null, dt };
 
   // Sounds and callouts as moments pass, played forwards only.
+  //
+  // A shot played live goes into the match a moment after it was let go:
+  // its release is stamped to the millisecond nearest the clock, which as
+  // often as not is just behind it, and a friend's comes over the network
+  // later still. So a turn new since the last frame is heard from a
+  // little way back (from the whistle on, for a kick the keeper waited
+  // on, so the whistle is not blown twice).
+  const live = S.screen === "playing";
+  const fresh = live ? Math.min(S.heardTurns ?? 0, state.turns.length) : Infinity;
   if (t > from) {
-    for (let k = Math.max(0, turnAt(state, from) - 1); k < state.turns.length; k++) {
+    for (let k = Math.max(0, Math.min(fresh, turnAt(state, from) - 1)); k < state.turns.length; k++) {
       const done = state.turns[k];
       if (done.start > t) break;
-      soundsAt(done, t, from);
+      const since = k >= fresh ? Math.min(from, Math.max(done.input === "keep" ? done.aimStart + 200 : done.start, from - CATCH_UP_MS)) : from;
+      soundsAt(done, t, since);
     }
+    // The turn still waiting on a person: the whistle before the bot's kick.
+    if (live && state.next?.input === "keep") soundsAt(state.next, t, from);
   }
+  if (live) S.heardTurns = state.turns.length;
   // The heart, heard when it races on a person's own shot.
   if (S.screen === "playing" && turn && turn === state.next && ownsPending(turn) && fr.phase === "aim" && turn.cond.pressure >= 0.45) {
     if (now - S.lastBeat > 60000 / turn.cond.bpm) {
