@@ -78,7 +78,9 @@ each, the nearer zero wins.
 out every round; both players shoot from each spot. Press, pull back for
 power and to the side to aim the other way, and let go. Two inside the
 6.75 m line, three beyond, and a point more for a swish. The ball comes off
-the rim and the glass. On Hard the hoop drifts slowly side to side.
+the rim and the glass. The hoop stays still on every difficulty (matches
+recorded before rules 3 had it drift side to side on Hard, and their
+replays still do).
 
 **Kicks.** A penalty shootout, 3, 5 or 7 kicks each, then sudden death; it
 ends early once one side cannot be caught. Drag from the ball to where you

@@ -9,9 +9,11 @@
 
 // 2: rain outdoors (js/sim-shared.js weatherFor). Records played by rules 1
 // still play by them: dry.
-export const RULES_VERSION = 2;
+// 3: the hoop stays still on Hard (js/sim-hoops.js). Records played by
+// rules 1 and 2 still play by them: on Hard it drifts.
+export const RULES_VERSION = 3;
 // Every version a record may say it was played by.
-export const READABLE_RULES = [1, 2];
+export const READABLE_RULES = [1, 2, 3];
 
 export const GAME_IDS = ["archery", "darts", "hoops", "kicks"];
 

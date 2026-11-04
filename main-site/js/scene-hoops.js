@@ -109,8 +109,8 @@ export function create() {
   apron.castShadow = false;
   scene.add(apron);
 
-  // The hoop: pole, arm, board, rim and net, all of which drift together
-  // on Hard.
+  // The hoop: pole, arm, board, rim and net, all of which move together
+  // in the old Hard matches (before rules 3) that had it drift.
   const hoop = new THREE.Group();
   const pole = mesh(new THREE.CylinderGeometry(0.09, 0.11, 3.6, 12), 0x30414d);
   pole.position.set(0, 1.8, BASELINE + 0.4);
@@ -255,7 +255,7 @@ export function create() {
     const cond = turn?.cond;
     const wind = cond?.wind ?? { x: 0, z: 0, speed: 0 };
 
-    // The hoop, drifting on Hard.
+    // The hoop: still, but for a replay of an old Hard match that drifts.
     const hx = cond ? rimX(cond, t - turn.aimStart) : 0;
     hoop.position.x = -hx;
 

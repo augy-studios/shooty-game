@@ -2,7 +2,7 @@
 // again, and nothing it can work out for itself.
 //
 // {
-//   v: 2,                          the rules it was played by
+//   v: 3,                          the rules it was played by
 //                                  (js/rules.js's RULES_VERSION)
 //   game: "archery" | "darts" | "hoops" | "kicks",
 //   mode: "bot" | "local" | "party",

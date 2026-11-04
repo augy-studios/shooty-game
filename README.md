@@ -91,7 +91,8 @@ Bump `RULES_VERSION` in `js/rules.js` for any change that alters how a
 record plays or scores, and add it to `READABLE_RULES`. A record carries
 the version it was played by and `js/sim.js` plays it by that version:
 rules 2 brought the rain, so a rules 1 record (an old replay link) still
-plays out dry, exactly as it did.
+plays out dry, exactly as it did; rules 3 stopped the hoop drifting on
+Hard, so a rules 1 or 2 Hard hoops record still drifts.
 
 ## The physics is the same everywhere
 

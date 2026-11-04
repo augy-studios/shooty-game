@@ -10,8 +10,9 @@
 //
 // A basketball is big and slow for its weight, so it feels the wind more
 // than anything else in this game: a crosswind of a couple of metres a
-// second moves a long shot by most of the rim's width. On Hard the hoop
-// itself drifts slowly side to side as well, and has to be led.
+// second moves a long shot by most of the rim's width. The hoop stays
+// still; only records played before rules 3 have it drift side to side on
+// Hard, and they still play that way.
 //
 // In the rain (cond.wet, js/sim-shared.js weatherFor) a rubber ball is
 // slick in the hand, so the aim and the pull wander more, and it skids
@@ -141,7 +142,9 @@ export const hoops = {
       slip,
       yawAmp: g.t.yaw * base.nerves * slip,
       powerAmp: g.t.power * base.nerves * slip,
-      drift: g.t.drift,
+      // Rules 3 put the hoop still; older records keep the drift they were
+      // played with.
+      drift: ctx.settings.rules < 3 ? g.t.drift : 0,
       driftPhase: TAU * unit(ctx.seedNum, ctx.i, SALT.drift, 0),
     };
     // The still air speed that drops it in the middle of a still hoop:
