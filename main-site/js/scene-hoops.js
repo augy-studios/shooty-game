@@ -232,7 +232,13 @@ export function create() {
       let sz = 0;
       if (ballPos && made) {
         const dy = RIM_Y - depth - ballPos.y;
-        const near = Math.max(0, 1 - Math.abs(dy) / 0.25);
+        // Only a ball in the hoop, over the rim, pushes the net out. Going
+        // by height alone, a made shot still rising past rim height metres
+        // out dragged the whole net out towards it, and the basket seemed
+        // to swell as the ball went up.
+        const across = Math.hypot(ballPos.x - hx, ballPos.z);
+        const inHoop = Math.max(0, 1 - across / (RIM_R + BALL));
+        const near = Math.max(0, 1 - Math.abs(dy) / 0.25) * inHoop;
         radius = Math.max(radius, (BALL + 0.02) * near + radius * (1 - near));
         sx = (ballPos.x - hx) * near * 0.6;
         sz = ballPos.z * near * 0.6;
