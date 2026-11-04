@@ -240,6 +240,7 @@ export const hoops = {
       swish: out.swish,
       bank: out.bank,
       rims: out.rims,
+      hits: out.hits,
       points,
       raw,
       path: path.pts,
@@ -294,6 +295,23 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
   let decidedAt = 0;
   let floor = 0;
   let apex = false;
+  // Every knock on the glass, the rim and the court, for the sounds: when
+  // (ms from the release) and how hard (m/s into the surface). Kept only
+  // with a path; nothing in the match reads it.
+  const hits = path ? [] : null;
+  const lastHit = {};
+  const hit = (kind, t, speed) => {
+    if (!hits || speed < 0.3) return;
+    // The ball rolling round the rim touches it step after step; that is
+    // one knock, not a rattle of them.
+    const last = lastHit[kind];
+    if (last && t * 1000 - last.ms < 60) {
+      last.speed = Math.max(last.speed, Math.round(speed * 100) / 100);
+      return;
+    }
+    lastHit[kind] = { kind, ms: Math.round(t * 1000), speed: Math.round(speed * 100) / 100 };
+    hits.push(lastHit[kind]);
+  };
   const maxSteps = Math.ceil(3.4 / DT);
   for (let n = 1; n <= maxSteps; n++) {
     const t = n * DT;
@@ -304,7 +322,8 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
     // The backboard's face.
     if (b.vz > 0 && b.z + BALL > BOARD_Z && b.z < BOARD_Z + 0.05 && Math.abs(b.x - hx) < BOARD.half && b.y > BOARD.bottom - BALL * 0.5 && b.y < BOARD.top) {
       b.z = BOARD_Z - BALL;
-      reflect(b, 0, 0, -1, surf.board[0], surf.board[1]);
+      const into = b.vz;
+      if (reflect(b, 0, 0, -1, surf.board[0], surf.board[1])) hit("board", t, into);
       board = true;
     }
 
@@ -327,7 +346,11 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
         b.x = qx + nx * (BALL + TUBE);
         b.y = RIM_Y + ny * (BALL + TUBE);
         b.z = qz + nz * (BALL + TUBE);
-        if (reflect(b, nx, ny, nz, surf.rim[0], surf.rim[1])) rims += 1;
+        const into = -(b.vx * nx + b.vy * ny + b.vz * nz);
+        if (reflect(b, nx, ny, nz, surf.rim[0], surf.rim[1])) {
+          rims += 1;
+          hit("rim", t, into);
+        }
       }
     }
 
@@ -352,7 +375,8 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
     // The floor.
     if (b.y < BALL) {
       b.y = BALL;
-      reflect(b, 0, 1, 0, surf.floor[0], surf.floor[1]);
+      const into = -b.vy;
+      if (reflect(b, 0, 1, 0, surf.floor[0], surf.floor[1])) hit("floor", t, into);
       floor += 1;
       if (!made && !decidedAt) decidedAt = t;
     }
@@ -369,7 +393,7 @@ function shoot(cond, yawDeg, speed, release, path, still = false) {
   }
   if (path) record(path, b, true);
   if (!decidedAt) decidedAt = maxSteps * DT;
-  return { made, swish: made && rims === 0 && !board, bank: made && board, rims, board, cross, decidedAt };
+  return { made, swish: made && rims === 0 && !board, bank: made && board, rims, board, cross, decidedAt, hits };
 }
 
 // The still air speed at which a straight shot's middle drops through the

@@ -491,6 +491,16 @@ function calloutFor(turn) {
   return ["", false];
 }
 
+// One knock of the basketball, louder the harder it lands. The glass has
+// no recording of its own: the court's bounce, higher and quicker, is hard
+// and bright enough for it.
+function hoopsKnock(h) {
+  const hard = Math.min(1, h.speed / 7);
+  if (h.kind === "rim") play("rim", { volume: 0.3 + 0.6 * hard, rate: 0.96 + 0.08 * hard });
+  else if (h.kind === "board") play("bounce", { volume: 0.25 + 0.55 * hard, rate: 1.45 });
+  else play("bounce", { volume: 0.12 + 0.6 * hard });
+}
+
 // How far back a shot just played live is still heard from, game ms.
 const CATCH_UP_MS = 400;
 
@@ -514,8 +524,9 @@ function soundsAt(turn, t, from) {
       if (r.out) play("cheer", { volume: 0.6, delay: 0.1 });
       else if (r.bust) play("aww", { volume: 0.5 });
     } else if (S.game === "hoops" && !r.none) {
+      // The rim, the glass and the court are heard as the ball meets them
+      // (below); here, the ball through the net.
       if (r.made) play("swish", { volume: 0.9 });
-      if (r.rims) play("rim", { volume: 0.8 });
       if (r.made && r.points >= 3) play("cheer", { volume: 0.45, delay: 0.15 });
       else if (!r.made) play("aww", { volume: 0.35, delay: 0.2 });
     } else if (S.game === "kicks") {
@@ -537,9 +548,13 @@ function soundsAt(turn, t, from) {
       S.callout = performance.now() + 1100;
     }
   }
-  // A bounce on the court for a missed shot coming down.
-  if (S.game === "hoops" && turn.result && !turn.result.none && from < turn.impact + 350 && t >= turn.impact + 350 && !turn.result.made) {
-    play("bounce", { volume: 0.5 });
+  // Every knock of the ball on the rim, the glass and the court, at the
+  // moment it lands, as hard as it lands.
+  if (S.game === "hoops" && turn.result?.hits && turn.release !== undefined) {
+    for (const h of turn.result.hits) {
+      const at = turn.release + h.ms;
+      if (from < at && t >= at) hoopsKnock(h);
+    }
   }
   // The whistle for the bot's kick, heard while the keeper still waits too.
   if (S.game === "kicks" && turn.input === "keep" && from < turn.aimStart + 200 && t >= turn.aimStart + 200) {
