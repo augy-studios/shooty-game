@@ -10,6 +10,11 @@
 // the picture: fully in the air over the sky, only faintly over something
 // solid, so they do not streak down the goalposts.
 //
+// Over the beams goes a lens flare (stack-game has none; this is uwuShooty's
+// own): a glow where the sun is and a string of pastel ghosts through the
+// middle of the screen, shown as much as the beams are and dimmed when
+// something stands in front of the sun.
+//
 // It reads the scene's colour and depth straight after the scene pass and
 // before the bow or dart in hand, so those never cast a shaft.
 
@@ -23,6 +28,8 @@ const DENSITY = 0.85;
 const DECAY = 0.955;
 const RAYS = 0.6;
 const TINT = new THREE.Color(1.0, 0.96, 0.86);
+// How bright the lens flare, at its brightest.
+const FLARE = 1;
 // How far from the middle of the screen the sun may be put, in screens.
 const REACH = 1.1;
 
@@ -76,17 +83,58 @@ const BLUR = /* glsl */ `
   }
 `;
 
+// The beams, then the lens flare over them: a soft glow where the sun is,
+// bleeding in from past the edge, and a string of pastel ghosts (discs and
+// one ring, the reflections between a lens's glasses) along the line from
+// the sun through the middle of the screen and out the other side. The
+// flare is as bright as the open sky near the sun lets it be, so it dims
+// when the trees or the stand stand in front of the sun.
 const MIX = /* glsl */ `
   uniform sampler2D uScene;
   uniform sampler2D uDepth;
   uniform sampler2D uRays;
   uniform float uStrength;
   uniform vec3 uTint;
+  uniform vec2 uSun;
+  uniform float uAspect;
+  uniform float uFlare;
   varying vec2 vUv;
+
+  // A soft disc of radius r round p, in screen heights.
+  float disc(vec2 p, float r) {
+    return 1.0 - smoothstep(r * 0.7, r, length((vUv - p) * vec2(uAspect, 1.0)));
+  }
+  float ring(vec2 p, float r, float w) {
+    float d = length((vUv - p) * vec2(uAspect, 1.0));
+    return 1.0 - smoothstep(0.0, w, abs(d - r));
+  }
+
   void main() {
     vec4 c = texture2D(uScene, vUv);
     float open = step(0.99999, texture2D(uDepth, vUv).r);
     c.rgb += texture2D(uRays, vUv).rgb * uTint * uStrength * mix(0.3, 1.0, open);
+
+    if (uFlare > 0.001) {
+      // How much sky shines round the sun: the beams just inside the edge
+      // nearest it.
+      vec2 inside = clamp(uSun, vec2(0.04), vec2(0.96));
+      vec3 shine = texture2D(uRays, inside).rgb;
+      float seen = smoothstep(0.04, 0.22, dot(shine, vec3(0.2126, 0.7152, 0.0722)));
+      float f = uFlare * seen;
+      vec2 axis = vec2(0.5) - uSun;
+      vec3 flare = vec3(0.0);
+      // The glow round the sun itself.
+      vec2 g = (vUv - uSun) * vec2(uAspect, 1.0);
+      flare += vec3(1.0, 0.93, 0.78) * exp(-dot(g, g) * 9.0) * 0.55;
+      // The ghosts.
+      flare += vec3(1.0, 0.85, 0.6) * disc(uSun + axis * 0.55, 0.035) * 0.22;
+      flare += vec3(0.6, 0.95, 0.85) * disc(uSun + axis * 0.85, 0.06) * 0.14;
+      flare += vec3(0.95, 0.75, 1.0) * disc(uSun + axis * 1.25, 0.025) * 0.26;
+      flare += vec3(0.7, 0.85, 1.0) * disc(uSun + axis * 1.55, 0.11) * 0.09;
+      flare += vec3(1.0, 0.8, 0.7) * ring(uSun + axis * 1.9, 0.16, 0.012) * 0.12;
+      flare += vec3(0.75, 1.0, 0.8) * disc(uSun + axis * 2.15, 0.045) * 0.16;
+      c.rgb += flare * f;
+    }
     gl_FragColor = c;
   }
 `;
@@ -122,6 +170,9 @@ export class GodRaysPass extends Pass {
       uRays: { value: this.rays.texture },
       uStrength: { value: 0 },
       uTint: { value: TINT },
+      uSun: { value: this.sourceMat.uniforms.uSun.value },
+      uAspect: { value: this.sourceMat.uniforms.uAspect.value },
+      uFlare: { value: 0 },
     });
     this.quad = new FullScreenQuad(this.sourceMat);
     // Set each frame: the camera the scene was drawn with, the direction
@@ -137,6 +188,7 @@ export class GodRaysPass extends Pass {
     this.source.setSize(w, h);
     this.rays.setSize(w, h);
     this.sourceMat.uniforms.uAspect.value = width / Math.max(1, height);
+    this.mixMat.uniforms.uAspect.value = this.sourceMat.uniforms.uAspect.value;
   }
 
   // Fading out as the camera turns away from the sun, and off once it is
@@ -158,7 +210,11 @@ export class GodRaysPass extends Pass {
     // every step would fall past its edge, so it is brought in, the same
     // way round, to no more than a little past the edge.
     const sun = this.sourceMat.uniforms.uSun.value.set(sunPoint.x * 0.5, sunPoint.y * 0.5);
-    if (sun.length() > REACH) sun.setLength(REACH);
+    // The flare is strongest with the sun just past the edge, and fainter
+    // the further off it is.
+    const off = sun.length();
+    const near = THREE.MathUtils.lerp(1, 0.45, THREE.MathUtils.smoothstep(off, 0.55, REACH));
+    if (off > REACH) sun.setLength(REACH);
     sun.addScalar(0.5);
 
     this.sourceMat.uniforms.uScene.value = readBuffer.texture;
@@ -174,6 +230,7 @@ export class GodRaysPass extends Pass {
     this.mixMat.uniforms.uScene.value = readBuffer.texture;
     this.mixMat.uniforms.uDepth.value = depth;
     this.mixMat.uniforms.uStrength.value = strength * RAYS;
+    this.mixMat.uniforms.uFlare.value = Math.min(1, strength) * near * FLARE;
     this.quad.material = this.mixMat;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     this.quad.render(renderer);

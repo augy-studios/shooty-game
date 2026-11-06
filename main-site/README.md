@@ -36,7 +36,7 @@ the browser and the server always agree on a match.
 | `sim-archery.js`, `sim-darts.js`, `sim-hoops.js`, `sim-kicks.js` | Each game's rules, sizes, bot and flight. |
 | `record.js` | A match as it is kept, sent and shared, and the token a long replay link carries. |
 | `scene.js` | The three.js stage, its materials and outlines, the light, the wind's motes (soft round dots on High), High graphics' post-processing (MSAA, god rays, bloom, SMAA), and the 4K capture. |
-| `godrays.js` | High graphics' god rays, after stack-game's: light shafts fanning out of the open sky past the trees, clouds and goal, towards the sun; faint at dusk, nearly gone in the rain, none indoors. |
+| `godrays.js` | High graphics' god rays, after stack-game's: light shafts fanning out of the open sky past the trees, clouds and goal, towards the sun, and a lens flare over them; faint at dusk, nearly gone in the rain, none indoors. |
 | `scene-props.js` | Trees, hills, clouds and the wind flags. |
 | `weather.js` | When lightning flashes and thunder rolls in a wet match, from the seed and the game clock, so a replay storms the same. |
 | `scene-weather.js` | The weather drawn: the grey sky and dark rain cloud, the drops and their splashes and ripples on the GPU, bigger splashes where things land, the wet ground and puddles, the forked lightning, and the stars on a clear night. |
@@ -249,7 +249,7 @@ Kept in this browser, after MRT Station Guesser's:
 | Sound effects | on | Also the button at the top of the tray. |
 | Hear your heartbeat on the big shots | on | |
 | Short buzzes | on | Where the device can vibrate. |
-| Graphics | High | High draws through post-processing: 4x MSAA, god rays from the sky outdoors, a soft bloom on anything brighter than white (lightning above all), and SMAA. Low draws one pixel per CSS pixel, no shadows and no post-processing. |
+| Graphics | High | High draws through post-processing: 4x MSAA, god rays and a lens flare from the sky outdoors, a soft bloom on anything brighter than white (lightning above all), and SMAA. Low draws one pixel per CSS pixel, no shadows and no post-processing. |
 
 Each game's difficulty, length and shot clock are remembered too.
 
