@@ -200,6 +200,8 @@ export function create() {
   scene.add(ballShadow);
 
   const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 400);
+  // Where the god rays come from, set each frame from the camera.
+  const glint = new THREE.Vector3(0, 0.5, 0.87);
   let lastT = 0;
   let aspect = 1;
   let prevCam = null;
@@ -294,6 +296,13 @@ export function create() {
       camera.position.set(0, 2.4, -7.5);
       camera.lookAt(0, RIM_Y - 0.6, 0);
     }
+    // The god rays' sun follows the hoop: ahead of the camera, whichever
+    // spot it shoots from, and high enough to sit just over the backboard,
+    // so the beams fan down past it and the trees from every spot.
+    camera.getWorldDirection(glint);
+    glint.y = 0;
+    glint.normalize().multiplyScalar(0.87);
+    glint.y = 0.5;
 
     // The ball: in hand, then in the air.
     let pos = null;
@@ -406,5 +415,9 @@ export function create() {
     return true;
   }
 
-  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, raysLevel: rain.raysLevel, glint: light.glint, weather: rain, ink, module: hoops };
+  // The god rays, stronger here than in kicks: the court is ringed by trees,
+  // so only gaps of sky between them cast them.
+  const RAYS_BOOST = 1.2;
+  const raysLevel = () => RAYS_BOOST * rain.raysLevel();
+  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, raysLevel, glint, weather: rain, ink, module: hoops };
 }

@@ -425,5 +425,9 @@ export function create({ renderer }) {
   // Metres on the face per pixel of drag, for the controls.
   const aimScale = (h, d) => ((2 * halfView(d)) / h) * 0.6;
 
-  return { scene, camera, overlay, update, resize, setMode, bloomBoost: rain.bloomBoost, raysLevel: rain.raysLevel, glint: light.glint, weather: rain, ink, aimScale, module: archery };
+  // The god rays, stronger here than in kicks: the range is walled in by
+  // trees, so only thin gaps of sky cast them.
+  const RAYS_BOOST = 2;
+  const raysLevel = () => RAYS_BOOST * rain.raysLevel();
+  return { scene, camera, overlay, update, resize, setMode, bloomBoost: rain.bloomBoost, raysLevel, glint: light.glint, weather: rain, ink, aimScale, module: archery };
 }
