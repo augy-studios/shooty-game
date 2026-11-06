@@ -431,5 +431,5 @@ export function create() {
     return true;
   }
 
-  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, weather: rain, ink, module: kicks };
+  return { scene, camera, update, resize, setMode, bloomBoost: rain.bloomBoost, raysLevel: rain.raysLevel, glint: light.glint, weather: rain, ink, module: kicks };
 }

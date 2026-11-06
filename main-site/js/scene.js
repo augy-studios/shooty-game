@@ -3,7 +3,9 @@
 //
 // On High graphics every frame goes through post-processing: the scene is
 // drawn into a 4x multisampled half-float target (MSAA, which smooths
-// every edge as it is drawn), bright light bleeds a soft glow round
+// every edge as it is drawn), light shafts fan out of the sky past the
+// trees, the clouds and the goal (god rays, after stack-game's), bright
+// light bleeds a soft glow round
 // itself (bloom: the sun on white paint, and above all lightning), the
 // colour is turned into the screen's sRGB, and SMAA cleans up the edges
 // MSAA cannot reach, inside textures and on thin lines. On Low the scene
@@ -25,6 +27,7 @@ import { RenderPass } from "../vendor/three/examples/jsm/postprocessing/RenderPa
 import { UnrealBloomPass } from "../vendor/three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "../vendor/three/examples/jsm/postprocessing/OutputPass.js";
 import { SMAAPass } from "../vendor/three/examples/jsm/postprocessing/SMAAPass.js";
+import { GodRaysPass } from "./godrays.js";
 
 export { THREE };
 
@@ -146,9 +149,16 @@ export function lights(scene, { sun = [8, 14, -6], target = [0, 0, 20], span = 3
   cam.far = 200;
   dir.shadow.bias = -0.0005;
   scene.add(dir, dir.target);
+  // Where the god rays come from: on the sun's side, but low and ahead of
+  // the camera rather than high over its shoulder, where the shadows want
+  // it, so the beams fan down out of the sky the player looks at, from
+  // just past the top corner of the screen.
+  const side = Math.sign(sun[0] - target[0]) || 1;
+  const glint = new THREE.Vector3(side * 0.25, 0.5, 0.83).normalize();
   return {
     hemi,
     dir,
+    glint,
     set(dusk) {
       hemi.intensity = dusk ? 0.75 : 1.4;
       hemi.color.set(dusk ? 0x9fb0ff : 0xffffff);
@@ -296,6 +306,9 @@ function resize() {
 function makePost() {
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: MSAA_SAMPLES });
+  // Its depth too, so the god rays can tell the open sky from what stands
+  // in front of it. The composer's second target gets its own copy.
+  target.depthTexture = new THREE.DepthTexture(size.x, size.y, THREE.UnsignedIntType);
   const composer = new EffectComposer(renderer, target);
   composer.setPixelRatio(renderer.getPixelRatio());
   composer.setSize(width, height);
@@ -305,14 +318,17 @@ function makePost() {
   const overlayPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
   overlayPass.clear = false;
   overlayPass.clearDepth = true;
+  const rays = new GodRaysPass();
   const bloom = new UnrealBloomPass(new THREE.Vector2(width, height), BLOOM.strength, BLOOM.radius, BLOOM.threshold);
   composer.addPass(scenePass);
+  // Before the bow and the dart in hand, so they cast no shafts.
+  composer.addPass(rays);
   composer.addPass(overlayPass);
   composer.addPass(bloom);
   // Into the screen's colour space, then the edges.
   composer.addPass(new OutputPass());
   composer.addPass(new SMAAPass());
-  return { composer, scenePass, overlayPass, bloom };
+  return { composer, scenePass, rays, overlayPass, bloom };
 }
 
 function usePost() {
@@ -369,6 +385,11 @@ export function render(info) {
       p.overlayPass.scene = current.overlay.scene;
       p.overlayPass.camera = current.overlay.camera;
     }
+    // God rays where the world has a sky to cast them (not indoors), as
+    // bright as its weather and the time of day let them be.
+    p.rays.camera = current.camera;
+    if (current.glint) p.rays.sun.copy(current.glint);
+    p.rays.level = current.glint ? (current.raysLevel?.() ?? 1) : 0;
     // A world can turn the glow up for a moment: lightning.
     p.bloom.strength = BLOOM.strength * (current.bloomBoost?.() ?? 1);
     p.composer.render(info.dt ? info.dt / 1000 : undefined);

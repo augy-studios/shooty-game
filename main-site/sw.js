@@ -38,7 +38,7 @@
 //    modules, so every game draws offline. The recordings under /sounds/
 //    are precached too; the bowstring, wind and heartbeat are synthesised.
 
-const VERSION = "uwushooty-v9";
+const VERSION = "uwushooty-v10";
 
 const SHELL = `uwushooty-shell-${VERSION}`;
 
@@ -81,6 +81,7 @@ const PRECACHE = [
   "/js/scene-hoops.js",
   "/js/scene-kicks.js",
   "/js/scene-props.js",
+  "/js/godrays.js",
   "/js/scene-weather.js",
   "/js/seed.js",
   "/js/settings.js",

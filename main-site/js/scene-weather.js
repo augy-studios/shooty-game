@@ -869,5 +869,8 @@ export function weather(scene, { light, clouds, box, centre, near = 1.4, ground,
     }
   }
 
-  return { setMode, update, impact, track, bloomBoost: () => 1 + 2.2 * flashNow };
+  // How bright the god rays are, after stack-game's: full by day, faint at
+  // dusk, and nearly gone once the rain cloud has come over.
+  const raysLevel = () => (dusk ? 0.35 : 1) * (1 - 0.85 * level);
+  return { setMode, update, impact, track, raysLevel, bloomBoost: () => 1 + 2.2 * flashNow };
 }
